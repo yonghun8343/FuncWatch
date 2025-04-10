@@ -1,0 +1,26 @@
+{
+  "ignore": [
+    "require",
+    "console",
+    "log",
+    "Date",
+    "setTimeout",
+    "clearTimeout",
+    "setInterval",
+    "clearInterval",
+    "parseInt",
+    "parseFloat",
+    "JSON",
+    "Object",
+    "Array",
+    "String",
+    "Number",
+    "Boolean",
+    "Math",
+    "RegExp",
+    "Error",
+    "main"
+  ],
+  "threshold": 3,
+  "extensions": [".js", ".ts"]
+}

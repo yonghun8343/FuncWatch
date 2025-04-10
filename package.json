@@ -1,0 +1,24 @@
+{
+  "name": "FuncWatch",
+  "version": "1.0.0",
+  "description": "FuncWatch",
+  "main": "run.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yonghun8343/FuncWatch.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yonghun8343/FuncWatch/issues"
+  },
+  "homepage": "https://github.com/yonghun8343/FuncWatch#readme",
+  "dependencies": {
+    "@babel/parser": "^7.27.0",
+    "@babel/traverse": "^7.27.0"
+  }
+}
