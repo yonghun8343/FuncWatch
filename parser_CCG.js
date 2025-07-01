@@ -97,3 +97,4 @@ edges.forEach((edge) => {
 const dotOutput = dot.write(g);
 fs.writeFileSync("output.dot", dotOutput);
 
+execSync("dot -Tpng output.dot -o graph.png");
