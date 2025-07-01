@@ -1,7 +1,6 @@
 {
   "name": "FuncWatch",
   "version": "1.0.0",
-  "description": "",
   "main": "function_test.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -20,5 +19,11 @@
   "devDependencies": {
     "@babel/parser": "^7.27.7",
     "@babel/traverse": "^7.27.7"
-  }
+  },
+  "dependencies": {
+    "graphlib": "^2.1.8",
+    "graphlib-dot": "^0.6.4",
+    "jsesc": "^3.1.0"
+  },
+  "description": ""
 }

@@ -1,0 +1,19 @@
+strict digraph {
+  N0 [label="Function foo"]
+  N1 [label="Expr: console.log(\"foo\");"]
+  N2 [label="Expr: bar();"]
+  N3 [label="Function bar"]
+  N4 [label="Expr: console.log(\"bar\");"]
+  N5 [label="Expr: baz();"]
+  N6 [label="Function baz"]
+  N7 [label="Expr: console.log(\"baz\");"]
+  "Function bar"
+  "Function baz"
+  N0 -> N1 [type=control]
+  N1 -> N2 [type=control]
+  N2 -> "Function bar" [type=call]
+  N3 -> N4 [type=control]
+  N4 -> N5 [type=control]
+  N5 -> "Function baz" [type=call]
+  N6 -> N7 [type=control]
+}

@@ -1,5 +1,9 @@
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
+const graphlib = require("graphlib");
+const dot = require("graphlib-dot");
+const fs = require("fs");
+const { execSync } = require("child_process");
 
 // 분석할 JavaScript 코드 예제
 const code = `
@@ -78,3 +82,18 @@ console.table(nodes);
 
 console.log("Edges:");
 console.table(edges);
+
+const g = new graphlib.Graph({ directed: true });
+
+nodes.forEach((node) => {
+  g.setNode(node.id, { label: node.label });
+});
+
+edges.forEach((edge) => {
+  g.setEdge(edge.from, edge.to, { type: edge.type });
+});
+
+// Graphviz DOT 형식으로 출력
+const dotOutput = dot.write(g);
+fs.writeFileSync("output.dot", dotOutput);
+

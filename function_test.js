@@ -20,6 +20,6 @@ function e(i) {
   };
 }
 
-() => {
+let f = () => {
   return i + 4;
 };

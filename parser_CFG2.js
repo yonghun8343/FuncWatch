@@ -18,7 +18,6 @@ function test(x) {
 // 파싱해서 AST 생성
 const ast = parser.parse(code, {
   sourceType: "module",
-  plugins: ["jsx"],
 });
 
 // CFG 데이터 저장소
@@ -63,7 +62,6 @@ traverse(ast, {
 
       // IfStatement 처리
       if (stmtPath.isIfStatement()) {
-        console.log(stmtPath);
         const consequent = stmtPath.get("consequent").get("body");
         const alternate = stmtPath.get("alternate").get("body");
 
