@@ -94,7 +94,7 @@ edges.forEach((edge) => {
 });
 
 // Graphviz DOT 형식으로 출력
-const dotOutput = dot.write(g);
-fs.writeFileSync("output.dot", dotOutput);
+// const dotOutput = dot.write(g);
+// fs.writeFileSync("output.dot", dotOutput);
 
-execSync("dot -Tpng output.dot -o graph.png");
+// execSync("dot -Tpng output.dot -o graph.png");
