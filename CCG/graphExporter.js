@@ -10,7 +10,6 @@ function buildGraph(nodes, edges) {
       label: node.name,
       shape: node.type === "Condition" ? "diamond" : "circle",
       type: node.type,
-      scope: node.scope,
     });
   });
 
