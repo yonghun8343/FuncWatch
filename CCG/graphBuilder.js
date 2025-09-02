@@ -1,224 +1,233 @@
+const { scope } = require("@babel/traverse/lib/cache");
+
 // graphBuilder.js
 const traverse = require("@babel/traverse").default;
 
-const startName = "global:Start";
-const endName = "global:End";
+const startName = { id: "global:Start", scope: "global", name: "Start" };
+const endName = { id: "global:End", scope: "global", name: "End" };
+const elements = {
+  nodes: [],
+  edges: [],
+};
 
-function getEnclosingFunctionScope(path) {
-  const func = path.findParent(
-    (p) =>
-      p.isFunctionDeclaration() ||
-      p.isFunctionExpression() ||
-      p.isArrowFunctionExpression()
-  );
-  return { name: func?.node?.id?.name || "global", path: func };
-}
+// stateType: 0 -> Call
+// stateType: 1 -> IfStatement
+// stateType: 2 -> WhileStatement
+// stateType: 3 -> FunctionCall
+
+const functionTable = new Map();
+functionTable.set(startName.name, {
+  name: startName.name,
+  nodes: [{ id: "start", type: "EntryPoint" }],
+  edges: [],
+});
+let condCount = 0;
 
 function extractGraphElements(ast) {
-  const functionTable = new Map();
+  let nowState = [];
 
-  registerFunction("global", "Start", "EntryPoint");
-  registerFunction("global", "End", "ExitPoint");
-
-  function registerFunction(scope, name, type) {
-    // isCond: { is: boolean, type: number } // boolean: is condition, number: condition type
-    // condition type
-    // 0: no condition
-    // 1: if condition
-    // 2: while condition
-    // 3: switch condition
-    // 4: for condition
-    // 5: for-in condition
-    // 6: for-of condition
-    functionTable.set(`${scope}:${name}`, {
-      isCond: { is: false, type: 0 },
-      nodes: [],
-      type,
+  function handleIfEnterStatement(path) {
+    const condId = `cond${++condCount}`;
+    nowState.push({
+      id: condId,
+      isOpen: true,
+      isType: 1,
+      if: [],
+      else: [],
     });
+    const funcData = functionTable.get(nowState[0].id);
+    funcData.nodes.push({ id: condId, type: "Condition" });
+    funcData.edges.push({
+      from: nowState[nowState.length - 2].id || startName.name,
+      to: condId,
+      type: "control",
+    });
+    functionTable.set(nowState[0].id, funcData);
   }
 
-  function getScpByPath(path) {
-    const scopeP = getEnclosingFunctionScope(path);
-    if (scopeP.name === "global" && !path.getFunctionParent()) {
-      try {
-        return {
-          key: "global",
-          value: functionTable.get(startName),
-        };
-      } catch (error) {
-        console.error(`Error getting global function scope: ${error}`);
-        return null;
-      }
-    } else {
-      const scopeGp = getEnclosingFunctionScope(scopeP.path);
-      try {
-        return {
-          key: `${scopeGp.name}:${scopeP.name}`,
-          value: functionTable.get(`${scopeGp.name}:${scopeP.name}`),
-        };
-      } catch (error) {
-        console.error(`Error getting function scope: ${error}`);
-        return null;
-      }
+  function handleIfExitStatement(path) {
+    const funcData = functionTable.get(nowState[0].id);
+    const curr = nowState.pop();
+    curr.exitNodes = [
+      ...(curr.if.length ? [curr.if[curr.if.length - 1]] : []),
+      ...(curr.else.length ? [curr.else[curr.else.length - 1]] : []),
+      ...(curr.exitNodes || []),
+    ];
+    if (curr.if.length > 0) {
+      let lastIf = curr.id;
+      curr.if.forEach((child) => {
+        funcData.edges.push({
+          from: lastIf,
+          to: child,
+          type: "control",
+        });
+        lastIf = child;
+      });
     }
-  }
-
-  function getScpByName(path, calleeName) {
-    const binding = path.scope.getBinding(calleeName);
-
-    if (binding) {
-      const calleeScopeFunc = binding.path.findParent(
-        (p) =>
-          p.isFunctionDeclaration() ||
-          p.isFunctionExpression() ||
-          p.isArrowFunctionExpression()
+    if (curr.else.length > 0) {
+      let lastIf = curr.id;
+      curr.else.forEach((child) => {
+        funcData.edges.push({
+          from: lastIf,
+          to: child,
+          type: "control",
+        });
+        lastIf = child;
+      });
+    }
+    const parent = nowState[nowState.length - 1];
+    if (parent) {
+      if (!parent.exitNodes) parent.exitNodes = [];
+      parent.exitNodes.push(...curr.exitNodes);
+    } else {
+      // 최상위 (함수 레벨)이면 functionTable에 기록
+      funcData.pendingExits = (funcData.pendingExits || []).concat(
+        curr.exitNodes
       );
-      const calleeScope = calleeScopeFunc?.node?.id?.name || "global";
-      const calleeId = `${calleeScope}:${calleeName}`;
-      return {
-        key: calleeId,
-        value: functionTable.get(calleeId),
-      };
+      functionTable.set(nowState[0].id, funcData);
     }
+
+    functionTable.set(nowState[0].id, funcData);
   }
 
-  function handleIfStatement(path) {
-    const scopeFunc = getScpByPath(path);
-    if (!scopeFunc) {
-      console.warn(`Function scope not found for path: ${path}`);
-      return;
-    }
-    scopeFunc.value.isCond = { is: true, type: 1 };
-    scopeFunc.value.nodes.push(new Array());
-  }
+  function handleWhileStatement(path) {}
 
-  function handleWhileStatement(path) {
-    const scopeFunc = getScpByPath(path);
-    if (!scopeFunc) {
-      console.warn(`Function scope not found for path: ${path}`);
-      return;
-    }
-    scopeFunc.value.isCond = { is: true, type: 2 };
-    scopeFunc.value.nodes.push(new Array());
-  }
+  function handleCallExpression(path) {
+    const calleeName = path.node.callee?.name || "(anonymous)"; // 익명함수 처리
+    if (nowState.length > 0) {
+      const funcData = functionTable.get(nowState[0].id);
+      if (!nowState[nowState.length - 1].isOpen) {
+        funcData.nodes.push({ id: calleeName, type: "FunctionCall" });
+        if (nowState[nowState.length - 1].exitNodes?.length) {
+          nowState[nowState.length - 1].exitNodes.forEach((child) => {
+            funcData.edges.push({
+              from: child,
+              to: calleeName,
+              type: "control",
+            });
+          });
+          nowState[nowState.length - 1].exitNodes = [];
+        } else {
+          funcData.edges.push({
+            from: nowState[0].id,
+            to: calleeName,
+            type: "control",
+          });
+        }
+      } else {
+        // else if를 확인하지 않는 이유는
+        // if(consequent) else alternate 안에서 다시 if, else로 나뉘기 때문
+        // if 블록인지 확인
+        if (
+          path.scope.path.parentPath.type === "IfStatement" &&
+          path.scope.path.key === "consequent"
+        ) {
+          nowState[nowState.length - 1].if.push(calleeName);
+        }
 
-  function handleCallExpression(path, state) {
-    const callee = path.node.callee;
-    if (callee?.type !== "Identifier") return;
-    const calleeName = callee.name;
+        // else 블록인지 확인
+        if (
+          path.scope.path.parentPath.type === "IfStatement" &&
+          path.scope.path.key === "alternate"
+        ) {
+          nowState[nowState.length - 1].else.push(calleeName);
+        }
+        funcData.nodes.push({ id: calleeName, type: "FunctionCall" });
+      }
 
-    const scopeFunc = getScpByPath(path);
-    if (!scopeFunc) {
-      console.warn(`Function scope not found for path: ${path}`);
-      return;
-    }
-    const scope = getScpByName(path, calleeName);
-    if (!scope) {
-      console.warn(`Function scope not found for callee: ${calleeName}`);
-      return;
-    }
-    if (scopeFunc.value.isCond?.is) {
-      const lastNode = findLastNode(scopeFunc.value.nodes);
-      lastNode.nodes.push(scope.key);
+      functionTable.set(nowState[0].id, funcData);
     } else {
-      scopeFunc.value.nodes.push(scope.key);
-    }
-  }
-
-  function findLastNode(nodes) {
-    if (nodes.length === 0) return nodes;
-
-    const lastNode = nodes[nodes.length - 1];
-    if (lastNode?.isCond?.is) {
-      return findLastNode(lastNode.nodes);
-    } else {
-      return lastNode;
+      const funcData = functionTable.get(startName.name);
+      funcData.nodes.push({ id: calleeName, type: "FunctionCall" });
+      funcData.edges.push({
+        from:
+          funcData.edges.length > 0
+            ? `${funcData.edges[funcData.edges.length - 1].to}`
+            : startName.name,
+        to: calleeName,
+        type: "control",
+      });
+      functionTable.set(startName.name, funcData);
     }
   }
 
   traverse(ast, {
-    FunctionDeclaration(path) {
-      const scope = getEnclosingFunctionScope(path);
-      const name = path.node.id.name;
-      registerFunction(scope.name, name, "FunctionDeclaration");
-    },
-    FunctionExpression(path) {
-      const scope = getEnclosingFunctionScope(path);
-      const nodeId = path.node.id?.name || "<anonymous>";
-      registerFunction(scope.name, nodeId, "FunctionExpression");
-    },
-    ArrowFunctionExpression(path) {
-      const scope = getEnclosingFunctionScope(path);
-      const nodeId = path.parentPath.node.id?.name || "<arrow>";
-      registerFunction(scope.name, nodeId, "ArrowFunctionExpression");
+    Function: {
+      enter(path) {
+        console.log("Funtion enter");
+        const name = path.node.id?.name || "(anonymous)"; // 익명함수 처리
+        nowState.push({ id: name, isOpen: false, isType: 0 });
+        functionTable.set(nowState[nowState.length - 1].id, {
+          name: nowState[nowState.length - 1].id,
+          nodes: [{ id: "start", type: "EntryPoint" }],
+          edges: [
+            {
+              from: "start",
+              to: nowState[nowState.length - 1].id,
+              type: "control",
+            },
+          ],
+        });
+      },
+      exit(path) {
+        console.log("Funtion exit");
+        const name = path.node.id?.name || "(anonymous)";
+        if (functionTable.has(name)) {
+          const funcData = functionTable.get(name);
+          funcData.nodes.push({ id: "end", type: "ExitPoint" });
+          if (nowState[nowState.length - 1].exitNodes?.length) {
+            nowState[nowState.length - 1].exitNodes.forEach((child) => {
+              funcData.edges.push({
+                from: child,
+                to: "end",
+                type: "control",
+              });
+            });
+          } else {
+            funcData.edges.push({
+              from: `${funcData.edges[funcData.edges.length - 1].to}`,
+              to: "end",
+              type: "control",
+            });
+          }
+          functionTable.set(name, funcData);
+        }
+        nowState = [];
+      },
     },
     IfStatement: {
       enter(path) {
-        const scopeFunc = getScpByPath(path);
-        if (!scopeFunc) {
-          console.warn(`Function scope not found for path: ${path}`);
-          return;
-        }
-        if (scopeFunc.value.isCond?.is) {
-          const lastNode = findLastNode(scopeFunc.value.nodes);
-          lastNode.nodes.push({
-            type: 1,
-            nodes: [],
-          });
-          lastNode.isCond = { is: true, type: 1 };
-        } else {
-          scopeFunc.value.nodes.push({
-            type: 1,
-            nodes: [],
-          });
-          scopeFunc.value.isCond = { is: true, type: 1 };
-        }
+        console.log("IfStatement enter");
+        handleIfEnterStatement(path);
       },
       exit(path) {
-        const scopeFunc = getScpByPath(path);
-        if (!scopeFunc) {
-          console.warn(`Function scope not found for path: ${path}`);
-          return;
-        }
-        scopeFunc.value.isCond = { is: false, type: 0 };
+        console.log("IfStatement exit");
+        handleIfExitStatement(path);
       },
     },
     WhileStatement: {
-      enter(path) {
-        const scopeFunc = getScpByPath(path);
-        if (!scopeFunc) {
-          console.warn(`Function scope not found for path: ${path}`);
-          return;
-        }
-        if (scopeFunc.value.isCond?.is) {
-          const lastNode = findLastNode(scopeFunc.value.nodes);
-          lastNode.push({
-            type: 2,
-            nodes: [],
-          });
-        } else {
-          scopeFunc.value.nodes.push({
-            type: 2,
-            nodes: [],
-          });
-          scopeFunc.value.isCond = { is: true, type: 2 };
-        }
-      },
-      exit(path) {
-        const scopeFunc = getScpByPath(path);
-        if (!scopeFunc) {
-          console.warn(`Function scope not found for path: ${path}`);
-          return;
-        }
-        scopeFunc.value.isCond = { is: false, type: 0 };
-      },
+      enter(path) {},
+      exit(path) {},
     },
-    CallExpression(path) {
-      handleCallExpression(path, functionTable);
+    CallExpression: {
+      enter(path) {
+        console.log("CallExpression");
+        handleCallExpression(path);
+      },
     },
   });
 
-  return makeGraphElements(functionTable);
+  const funcData = functionTable.get(startName.name);
+  console.log(funcData);
+  funcData.nodes.push({ id: "end", type: "ExitPoint" });
+  funcData.edges.push({
+    from: `${funcData.edges[funcData.edges.length - 1].to || "start"}`,
+    to: "end",
+    type: "control",
+  });
+  functionTable.set(startName.name, funcData);
+
+  return makeGraphElements();
 }
 
 function arrayPopLoop(arr, func) {
@@ -229,95 +238,18 @@ function arrayPopLoop(arr, func) {
   return arr;
 }
 
-function processBranch(branch, prevNodes, elements) {
-  if (typeof branch === "string") {
-    for (const prevNode of prevNodes) {
-      elements.edges.push({
-        from: prevNode,
-        to: branch,
-        type: "control",
-      });
-    }
-    return branch;
+function makeGraphElements() {
+  // arrayPopLoop(nowState, (data) => {
+  //   elements.edges.push({
+  //     from: `${data.scope}:${data.name}`,
+  //     to: endName.id,
+  //     edgeType: "control",
+  //   });
+  // });
+
+  for (const [key, value] of functionTable) {
+    console.log(key, value);
   }
-
-  const { type, nodes } = branch;
-
-  if (type === 0) {
-    let current = prevNodes;
-    for (const child of nodes) {
-      current = processBranch(child, prevNodes, elements);
-    }
-    return current;
-  } else if (type === 1) {
-    let id = startName;
-    arrayPopLoop(prevNodes, (prevNode) => {
-      id = `${prevNode.split(":")[0]}:Cond.${elements.condIdCount}`;
-      elements.nodes.push({
-        id: id,
-        name: `Cond.${elements.condIdCount}`,
-        type: "Condition",
-      });
-      elements.edges.push({
-        from: prevNode,
-        to: id,
-        type: "call",
-      });
-    });
-    elements.condIdCount++;
-
-    for (const child of nodes) {
-      const end = processBranch(child, [id], elements);
-      prevNodes.push(end);
-    }
-    return id; // cond 노드가 기준이므로
-  } else if (type === 2) {
-    // while 반복
-    const cond = prevNodes;
-    let last = cond;
-    for (const child of nodes) {
-      last = processBranch(child, prevNodes, elements);
-    }
-    // 마지막 노드 → cond 로 루프 백
-    elements.edges.push({ from: last, to: cond, type: "control" });
-    return cond;
-  }
-}
-
-function makeGraphElements(functionTable) {
-  const elements = {
-    nodes: [],
-    edges: [],
-    condIdCount: 0,
-  };
-
-  let prev = [startName];
-  for (const [funcName, { type, nodes }] of functionTable.entries()) {
-    elements.nodes.push({
-      id: funcName,
-      name: funcName.split(":")[1],
-      type: type,
-    });
-    for (const branch of nodes) {
-      processBranch(branch, prev, elements);
-    }
-  }
-
-  arrayPopLoop(prev, (prevNode) => {
-    elements.edges.push({
-      from: prevNode,
-      to: endName,
-      type: "control",
-    });
-  });
-
-  for (const [key, value] of functionTable.entries()) {
-    console.log(`Key: ${key}`);
-    console.dir(value, { depth: null });
-  }
-
-  console.table(elements.nodes);
-  console.table(elements.edges);
 
   return elements;
 }

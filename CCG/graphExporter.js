@@ -8,13 +8,13 @@ function buildGraph(nodes, edges) {
   nodes.forEach((node) => {
     g.setNode(node.id, {
       label: node.name,
-      shape: node.type === "Condition" ? "diamond" : "circle",
-      type: node.type,
+      shape: node.nodeType === "Condition" ? "diamond" : "circle",
+      type: node.nodeType,
     });
   });
 
   edges.forEach((edge) => {
-    g.setEdge(edge.from, edge.to, { type: edge.type });
+    g.setEdge(edge.from, edge.to, { type: edge.edgeType });
   });
 
   return g;
