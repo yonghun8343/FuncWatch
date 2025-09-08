@@ -14,11 +14,10 @@ const elements = {
 // stateType: 1 -> IfStatement
 // stateType: 2 -> WhileStatement
 // stateType: 3 -> FunctionCall
-
 const functionTable = new Map();
 functionTable.set(startName.name, {
   name: startName.name,
-  nodes: [{ id: "start", type: "EntryPoint" }],
+  nodes: [{ id: "Start", nodeType: "EntryPoint" }],
   edges: [],
 });
 let condCount = 0;
@@ -36,17 +35,18 @@ function extractGraphElements(ast) {
       else: [],
     });
     const funcData = functionTable.get(nowState[0].id);
-    funcData.nodes.push({ id: condId, type: "Condition" });
+    funcData.nodes.push({ id: condId, nodeType: "Condition" });
     funcData.edges.push({
       from: nowState[nowState.length - 2].id || startName.name,
       to: condId,
-      type: "control",
+      edgeType: "control",
     });
     functionTable.set(nowState[0].id, funcData);
   }
 
   function handleIfExitStatement(path) {
     const funcData = functionTable.get(nowState[0].id);
+    console.log(nowState);
     const curr = nowState.pop();
     curr.exitNodes = [
       ...(curr.if.length ? [curr.if[curr.if.length - 1]] : []),
@@ -59,7 +59,7 @@ function extractGraphElements(ast) {
         funcData.edges.push({
           from: lastIf,
           to: child,
-          type: "control",
+          edgeType: "control",
         });
         lastIf = child;
       });
@@ -70,7 +70,7 @@ function extractGraphElements(ast) {
         funcData.edges.push({
           from: lastIf,
           to: child,
-          type: "control",
+          edgeType: "control",
         });
         lastIf = child;
       });
@@ -97,21 +97,22 @@ function extractGraphElements(ast) {
     if (nowState.length > 0) {
       const funcData = functionTable.get(nowState[0].id);
       if (!nowState[nowState.length - 1].isOpen) {
-        funcData.nodes.push({ id: calleeName, type: "FunctionCall" });
+        funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
         if (nowState[nowState.length - 1].exitNodes?.length) {
           nowState[nowState.length - 1].exitNodes.forEach((child) => {
             funcData.edges.push({
               from: child,
               to: calleeName,
-              type: "control",
+              edgeType: "control",
             });
           });
+          console.log(nowState[nowState.length - 1]);
           nowState[nowState.length - 1].exitNodes = [];
         } else {
           funcData.edges.push({
             from: nowState[0].id,
             to: calleeName,
-            type: "control",
+            edgeType: "control",
           });
         }
       } else {
@@ -132,20 +133,20 @@ function extractGraphElements(ast) {
         ) {
           nowState[nowState.length - 1].else.push(calleeName);
         }
-        funcData.nodes.push({ id: calleeName, type: "FunctionCall" });
+        funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
       }
 
       functionTable.set(nowState[0].id, funcData);
     } else {
       const funcData = functionTable.get(startName.name);
-      funcData.nodes.push({ id: calleeName, type: "FunctionCall" });
+      funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
       funcData.edges.push({
         from:
           funcData.edges.length > 0
             ? `${funcData.edges[funcData.edges.length - 1].to}`
             : startName.name,
         to: calleeName,
-        type: "control",
+        edgeType: "control",
       });
       functionTable.set(startName.name, funcData);
     }
@@ -159,12 +160,12 @@ function extractGraphElements(ast) {
         nowState.push({ id: name, isOpen: false, isType: 0 });
         functionTable.set(nowState[nowState.length - 1].id, {
           name: nowState[nowState.length - 1].id,
-          nodes: [{ id: "start", type: "EntryPoint" }],
+          nodes: [{ id: "Start", nodeType: "EntryPoint" }],
           edges: [
             {
-              from: "start",
+              from: "Start",
               to: nowState[nowState.length - 1].id,
-              type: "control",
+              edgeType: "control",
             },
           ],
         });
@@ -174,20 +175,20 @@ function extractGraphElements(ast) {
         const name = path.node.id?.name || "(anonymous)";
         if (functionTable.has(name)) {
           const funcData = functionTable.get(name);
-          funcData.nodes.push({ id: "end", type: "ExitPoint" });
+          funcData.nodes.push({ id: "End", nodeType: "ExitPoint" });
           if (nowState[nowState.length - 1].exitNodes?.length) {
             nowState[nowState.length - 1].exitNodes.forEach((child) => {
               funcData.edges.push({
                 from: child,
-                to: "end",
-                type: "control",
+                to: "End",
+                edgeType: "control",
               });
             });
           } else {
             funcData.edges.push({
               from: `${funcData.edges[funcData.edges.length - 1].to}`,
-              to: "end",
-              type: "control",
+              to: "End",
+              edgeType: "control",
             });
           }
           functionTable.set(name, funcData);
@@ -218,35 +219,18 @@ function extractGraphElements(ast) {
   });
 
   const funcData = functionTable.get(startName.name);
-  console.log(funcData);
-  funcData.nodes.push({ id: "end", type: "ExitPoint" });
+  funcData.nodes.push({ id: "End", nodeType: "ExitPoint" });
   funcData.edges.push({
-    from: `${funcData.edges[funcData.edges.length - 1].to || "start"}`,
-    to: "end",
-    type: "control",
+    from: `${funcData.edges[funcData.edges.length - 1].to || "Start"}`,
+    to: "End",
+    edgeType: "control",
   });
   functionTable.set(startName.name, funcData);
 
-  return makeGraphElements();
+  return functionTable;
 }
 
-function arrayPopLoop(arr, func) {
-  while (arr.length > 0) {
-    const item = arr.pop();
-    func(item);
-  }
-  return arr;
-}
-
-function makeGraphElements() {
-  // arrayPopLoop(nowState, (data) => {
-  //   elements.edges.push({
-  //     from: `${data.scope}:${data.name}`,
-  //     to: endName.id,
-  //     edgeType: "control",
-  //   });
-  // });
-
+function makeGraphElements(functionTable) {
   for (const [key, value] of functionTable) {
     console.log(key, value);
   }
@@ -256,4 +240,5 @@ function makeGraphElements() {
 
 module.exports = {
   extractGraphElements,
+  makeGraphElements,
 };

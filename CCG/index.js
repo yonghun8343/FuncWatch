@@ -2,12 +2,14 @@
 const { parseJavaScriptFile } = require("./parser");
 const { extractGraphElements } = require("./graphBuilder");
 const { buildGraph, exportToDotFile } = require("./graphExporter");
+const { buildPRGraph } = require("./calcPageRank");
 const { execSync } = require("child_process");
 
 function main(inputFile, dotFile, imageFile) {
   const ast = parseJavaScriptFile(inputFile);
-  extractGraphElements(ast);
-  // const { nodes, edges } = extractGraphElements(ast);
+  const functionTable = extractGraphElements(ast);
+  const prGraph = buildPRGraph(functionTable);
+  // const { nodes, edges } = functionTable.get("M");
   // const graph = buildGraph(nodes, edges);
   // exportToDotFile(graph, dotFile);
   // execSync(`dot -Tpng ${dotFile} -o ${imageFile}`);

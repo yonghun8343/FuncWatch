@@ -7,7 +7,7 @@ function buildGraph(nodes, edges) {
 
   nodes.forEach((node) => {
     g.setNode(node.id, {
-      label: node.name,
+      label: node.id,
       shape: node.nodeType === "Condition" ? "diamond" : "circle",
       type: node.nodeType,
     });
