@@ -30,15 +30,14 @@ function buildPRGraph(functionTable) {
 
   nodeNames.shift();
 
-  console.log(nodeNames);
   console.log(inbound);
   console.log(outbound);
 
-  return pageRank(outbound);
+  return pageRank(inbound, outbound);
 }
 
-function pageRank(graph, d = 0.85, maxIter = 100, tol = 1.0e-6) {
-  const nodes = Object.keys(graph);
+function pageRank(inbound, outbound, d = 0.85, maxIter = 100, tol = 1.0e-6) {
+  const nodes = Object.keys(outbound);
   const N = nodes.length;
   let rank = {};
 
@@ -48,13 +47,21 @@ function pageRank(graph, d = 0.85, maxIter = 100, tol = 1.0e-6) {
     let newRank = {};
     let diff = 0;
 
+    let danglingSum = 0;
+    nodes.forEach((n) => {
+      if ((outbound[n] || []).length === 0) {
+        danglingSum += rank[n];
+      }
+    });
+
     nodes.forEach((node) => {
-      let inbound = nodes.filter((n) => graph[n].includes(node));
       let sum = 0;
-      inbound.forEach((u) => {
-        sum += rank[u] / graph[u].length;
+      (inbound[node] || []).forEach((u) => {
+        sum += rank[u] / (outbound[u] || []).length;
       });
-      newRank[node] = (1 - d) / N + d * sum;
+
+      newRank[node] = (1 - d) / N + d * (sum + danglingSum / N);
+
       diff += Math.abs(newRank[node] - rank[node]);
     });
 

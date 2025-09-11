@@ -5,6 +5,7 @@ function foo() {
   function foo1() {
     bar();
   }
+  foo1();
   return 1;
 }
 

@@ -8,6 +8,7 @@ function M() {
   } else {
     M3();
   }
+  M1();
 
   while (cond2 < 3) {
     M4();
