@@ -100,6 +100,35 @@ function extractGraphElements(ast) {
   return functionTable;
 }
 
+function makeAllGraph(functionTable) {
+  functionTable.set("All", {
+    name: "All",
+    nodes: [],
+    edges: [],
+  });
+
+  for (const [key, value] of functionTable) {
+    if (key !== "All") {
+      const funcData = functionTable.get(key);
+      if (
+        funcData.edges[funcData.edges.length - 1].to ===
+          funcData.edges[funcData.edges.length - 2].to &&
+        funcData.edges[funcData.edges.length - 1].from ===
+          funcData.edges[funcData.edges.length - 2].from
+      ) {
+        funcData.edges.pop();
+      }
+      funcData.nodes = funcData.nodes.slice(1, -1); // Start, End 노드 제거
+      funcData.edges = funcData.edges.slice(1, -1); // Start, End 엣지 제거
+      functionTable.get("All").nodes.push(...funcData.nodes);
+      functionTable.get("All").edges.push(...funcData.edges);
+    }
+  }
+
+  return functionTable;
+}
+
 module.exports = {
   extractGraphElements,
+  makeAllGraph,
 };

@@ -5,11 +5,11 @@ function M() {
   if (cond1 == 1) {
     M2();
   } else if (cond2 == 2) {
-    M6();
-  } else {
     M3();
+  } else {
+    M4();
   }
-  M7();
+  M5();
 }
 
 function M2() {

@@ -30,8 +30,8 @@ function buildPRGraph(functionTable) {
 
   nodeNames.shift();
 
-  console.log(inbound);
-  console.log(outbound);
+  // console.log(inbound);
+  // console.log(outbound);
 
   return pageRank(inbound, outbound);
 }
@@ -69,12 +69,35 @@ function pageRank(inbound, outbound, d = 0.85, maxIter = 100, tol = 1.0e-6) {
     if (diff < tol) break;
   }
 
-  console.log(rank);
+  // console.log(rank);
+  // const total = Object.values(rank).reduce((a, b) => a + b, 0);
+  // console.log("합:", total);
 
-  const total = Object.values(rank).reduce((a, b) => a + b, 0);
-  console.log("합:", total);
+  return redistributeCondRanks(rank, outbound);
+}
 
-  return rank;
+function redistributeCondRanks(rank, outbound) {
+  const newRank = { ...rank };
+
+  for (const node in rank) {
+    if (node.startsWith("cond")) {
+      const score = newRank[node];
+      const outs = outbound[node] || [];
+      if (outs.length > 0) {
+        const share = score / outs.length;
+        outs.forEach((out) => {
+          newRank[out] = (newRank[out] || 0) + share;
+        });
+      }
+      delete newRank[node];
+    }
+  }
+
+  // console.log(newRank);
+  // const total = Object.values(newRank).reduce((a, b) => a + b, 0);
+  // console.log("합:", total);
+
+  return newRank;
 }
 
 module.exports = {

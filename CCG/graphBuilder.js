@@ -20,31 +20,66 @@ function extractGraphElements(ast) {
 
   function handleIfEnterStatement(path) {
     const condId = `cond${++condCount}`;
-    nowState.push({
-      id: condId,
-      isOpen: true,
-      isType: 1,
-      if: [],
-      else: [],
-    });
     const funcData = functionTable.get(nowState[0].id);
+    const lastState = nowState[nowState.length - 1];
     funcData.nodes.push({ id: condId, nodeType: "Condition" });
-    if (nowState[nowState.length - 2].exitNodes?.length) {
-      nowState[nowState.length - 2].exitNodes.forEach((child) => {
+
+    if (!lastState.isOpen && lastState.exitNodes?.length) {
+      lastState.exitNodes.forEach((child) => {
         funcData.edges.push({
           from: child,
           to: condId,
           edgeType: "call",
         });
       });
-      nowState[nowState.length - 2].exitNodes = [];
+      lastState.exitNodes = [];
+    }
+
+    // if문이 끝났을 때 상위 if문이 있다면 if / else 블록에 연결
+    if (lastState.isOpen) {
+      if (
+        path.scope.path.parentPath.type === "IfStatement" &&
+        path.scope.path.key === "consequent" &&
+        lastState.if.length > 0
+      ) {
+        funcData.edges.push({
+          from: lastState.if[lastState.if.length - 1],
+          to: condId,
+          edgeType: "control",
+        });
+      } else if (
+        path.scope.path.parentPath.type === "IfStatement" &&
+        path.scope.path.key === "alternate" &&
+        lastState.else.length > 0
+      ) {
+        funcData.edges.push({
+          from: lastState.else[lastState.else.length - 1],
+          to: condId,
+          edgeType: "control",
+        });
+      } else {
+        funcData.edges.push({
+          from: lastState.id,
+          to: condId,
+          edgeType: "control",
+        });
+      }
     } else {
       funcData.edges.push({
-        from: nowState[nowState.length - 2].id || startName.name,
+        from: lastState.id || startName.name,
         to: condId,
         edgeType: "control",
       });
     }
+
+    nowState.push({
+      id: condId,
+      isOpen: true,
+      isType: "IfStatement",
+      if: [],
+      else: [],
+    });
+
     functionTable.set(nowState[0].id, funcData);
   }
 
@@ -52,76 +87,57 @@ function extractGraphElements(ast) {
     const funcData = functionTable.get(nowState[0].id);
     const curr = nowState.pop();
     curr.exitNodes = [
-      ...(curr.if.length ? [curr.if[curr.if.length - 1]] : []),
-      ...(curr.else.length ? [curr.else[curr.else.length - 1]] : []),
       ...(curr.exitNodes || []),
+      ...(curr.if?.length ? [curr.if[curr.if.length - 1]] : []),
+      ...(curr.else?.length ? [curr.else[curr.else.length - 1]] : []),
     ];
-    if (curr.if.length > 0) {
-      let lastIf = curr.id;
-      curr.if.forEach((child) => {
-        funcData.edges.push({
-          from: lastIf,
-          to: child,
-          edgeType: "control",
-        });
-        lastIf = child;
-      });
-    }
-    if (curr.else.length > 0) {
-      let lastIf = curr.id;
-      curr.else.forEach((child) => {
-        funcData.edges.push({
-          from: lastIf,
-          to: child,
-          edgeType: "control",
-        });
-        lastIf = child;
-      });
-    }
-    const parent = nowState[nowState.length - 1];
-    parent.exitType = 1;
-    parent.isOpen = false;
-    if (parent) {
-      if (!parent.exitNodes) parent.exitNodes = [];
-      parent.exitNodes.push(...curr.exitNodes);
+    const lastState = nowState[nowState.length - 1];
+    lastState.exitType = "IfStatement";
+    lastState.lastNode = curr.exitNodes[curr.exitNodes.length - 1];
+    if (lastState) {
+      if (!lastState.exitNodes) lastState.exitNodes = [];
+      lastState.exitNodes.push(...curr.exitNodes);
     } else {
       // 최상위 (함수 레벨)이면 functionTable에 기록
-      funcData.pendingExits = (funcData.pendingExits || []).concat(
-        curr.exitNodes
-      );
+      // funcData.pendingExits = (funcData.pendingExits || []).concat(
+      //   curr.exitNodes
+      // );
     }
+
+    console.log(nowState);
 
     functionTable.set(nowState[0].id, funcData);
   }
 
   function handleWhileEnterStatement(path) {
     const condId = `cond${++condCount}`;
-    nowState.push({
-      id: condId,
-      isOpen: true,
-      isType: 2,
-      nodes: [],
-    });
+    const lastState = nowState[nowState.length - 1];
     const funcData = functionTable.get(nowState[0].id);
-    console.log("------------------------");
-    console.log(nowState);
     funcData.nodes.push({ id: condId, nodeType: "Condition" });
-    if (nowState[nowState.length - 2].exitNodes?.length) {
-      nowState[nowState.length - 2].exitNodes.forEach((child) => {
+    if (!lastState.isOpen && lastState.exitNodes?.length) {
+      lastState.exitNodes.forEach((child) => {
         funcData.edges.push({
           from: child,
           to: condId,
           edgeType: "call",
         });
       });
-      nowState[nowState.length - 2].exitNodes = [];
+      lastState.exitNodes = [];
     } else {
       funcData.edges.push({
-        from: nowState[nowState.length - 2].id || startName.name,
+        from: lastState.id || startName.name,
         to: condId,
         edgeType: "control",
       });
     }
+    nowState.push({
+      id: condId,
+      isOpen: true,
+      isType: "WhileStatement",
+      nodes: [],
+    });
+
+    console.log(nowState);
     functionTable.set(nowState[0].id, funcData);
   }
 
@@ -146,53 +162,78 @@ function extractGraphElements(ast) {
       ...(nowState[nowState.length - 1].exitNodes || []),
       curr.id,
     ];
-    nowState[nowState.length - 1].exitType = 2;
+    nowState[nowState.length - 1].exitType = "WhileStatement";
 
+    // while문이 끝났을 때 상위 if문이 있다면 if / else 블록에 연결
+    if (nowState[nowState.length - 1].isOpen) {
+      if (nowState[nowState.length - 1].else.length === 0) {
+        funcData.edges.push({
+          from: nowState[nowState.length - 1].if[
+            nowState[nowState.length - 1].if.length - 1
+          ],
+          to: curr.id,
+          edgeType: "control",
+        });
+      } else {
+        funcData.edges.push({
+          from: nowState[nowState.length - 1].else[
+            nowState[nowState.length - 1].else.length - 1
+          ],
+          to: curr.id,
+          edgeType: "control",
+        });
+      }
+    }
     functionTable.set(nowState[0].id, funcData);
   }
 
-  function handleCallExpression(path) {
+  function handleCallEnterExpression(path) {
     const calleeName = path.node.callee?.name || "(anonymous)"; // 익명함수 처리
-    console.log(nowState);
     if (nowState.length > 0) {
       const lastState = nowState[nowState.length - 1];
-      if (lastState.isType === 1 || lastState.exitType === 1) {
-        console.log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", calleeName);
+      if (
+        (lastState.isType === "IfStatement" && lastState.isOpen) ||
+        lastState.exitType === "IfStatement"
+      ) {
+        console.log(`IfCallExpression enter ${calleeName}`);
         IfCallExpression(path, calleeName);
-      } else if (lastState.isType === 2 || lastState.exitType === 2) {
-        console.log("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", calleeName);
+      } else if (
+        (lastState.isType === "WhileStatement" && lastState.isOpen) ||
+        lastState.exitType === "WhileStatement"
+      ) {
+        console.log(`WhileStatement enter ${calleeName}`);
         WhileCallExpression(calleeName);
       } else {
-        console.log("CCCCCCCCCCCCCCCCCCCCCC", calleeName);
+        console.log(`LocalCallExpression enter ${calleeName}`);
         localCallExpression(calleeName);
       }
     } else {
-      console.log("CCCCCCCCCCCCCCCCCCCCCC", calleeName);
+      console.log(`globalCallExpression enter ${calleeName}`);
       globalCallExpression(calleeName);
+    }
+    console.log(nowState);
+  }
+
+  function handleCallExitExpression(path) {
+    const calleeName = path.node.callee?.name || "(anonymous)"; // 익명함수 처리
+    if (nowState.length) {
+      if (!nowState[nowState.length - 1].isOpen) {
+        nowState[nowState.length - 1].exitNodes = [
+          ...(nowState[nowState.length - 1].exitNodes || []),
+          calleeName,
+        ];
+        nowState[nowState.length - 1].exitType = "FunctionCall";
+      }
     }
   }
 
   function IfCallExpression(path, calleeName) {
     const funcData = functionTable.get(nowState[0].id);
-    if (!nowState[nowState.length - 1].isOpen) {
-      funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
-      if (nowState[nowState.length - 1].exitNodes?.length) {
-        nowState[nowState.length - 1].exitNodes.forEach((child) => {
-          funcData.edges.push({
-            from: child,
-            to: calleeName,
-            edgeType: "call",
-          });
-        });
-        nowState[nowState.length - 1].exitNodes = [];
-      } else {
-        funcData.edges.push({
-          from: nowState[0].id,
-          to: calleeName,
-          edgeType: "call",
-        });
-      }
-    } else {
+    const lastState = nowState[nowState.length - 1];
+    funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
+    console.log("======================");
+    console.log(lastState);
+    if (lastState.isOpen) {
       // else if를 확인하지 않는 이유는
       // if(consequent) else alternate 안에서 다시 if, else로 나뉘기 때문
       // if 블록인지 확인
@@ -200,7 +241,22 @@ function extractGraphElements(ast) {
         path.scope.path.parentPath.type === "IfStatement" &&
         path.scope.path.key === "consequent"
       ) {
-        nowState[nowState.length - 1].if.push(calleeName);
+        if (!lastState.if.length && !lastState.lastNode) {
+          funcData.edges.push({
+            from: lastState.id,
+            to: calleeName,
+            edgeType: "control",
+          });
+        } else {
+          if (lastState.lastNode) {
+            funcData.edges.push({
+              from: lastState.lastNode,
+              to: calleeName,
+              edgeType: "control",
+            });
+          }
+        }
+        lastState.if.push(calleeName);
       }
 
       // else 블록인지 확인
@@ -208,9 +264,36 @@ function extractGraphElements(ast) {
         path.scope.path.parentPath.type === "IfStatement" &&
         path.scope.path.key === "alternate"
       ) {
-        nowState[nowState.length - 1].else.push(calleeName);
+        if (!lastState.else.length && !lastState.exitType) {
+          funcData.edges.push({
+            from: lastState.id,
+            to: calleeName,
+            edgeType: "control",
+          });
+        } else {
+          if (lastState.lastNode) {
+            funcData.edges.push({
+              from: lastState.lastNode,
+              to: calleeName,
+              edgeType: "control",
+            });
+          }
+        }
+        lastState.lastNode = calleeName;
+        lastState.else.push(calleeName);
       }
-      funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
+    }
+
+    if (lastState.exitNodes?.length) {
+      lastState.exitNodes.forEach((child) => {
+        funcData.edges.push({
+          from: child,
+          to: calleeName,
+          edgeType: "control",
+        });
+      });
+      lastState.lastNode = "";
+      lastState.exitNodes = [];
     }
 
     functionTable.set(nowState[0].id, funcData);
@@ -219,18 +302,17 @@ function extractGraphElements(ast) {
   function WhileCallExpression(calleeName) {
     const funcData = functionTable.get(nowState[0].id);
     funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
-    if (!nowState[nowState.length - 1].isOpen) {
-      console.log("================================");
-      console.log(nowState);
-      if (nowState[nowState.length - 1].exitNodes?.length) {
-        nowState[nowState.length - 1].exitNodes.forEach((child) => {
+    const lastState = nowState[nowState.length - 1];
+    if (!lastState.isOpen) {
+      if (lastState.exitNodes?.length) {
+        lastState.exitNodes.forEach((child) => {
           funcData.edges.push({
             from: child,
             to: calleeName,
             edgeType: "call",
           });
         });
-        nowState[nowState.length - 1].exitNodes = [];
+        lastState.exitNodes = [];
       } else {
         funcData.edges.push({
           from: nowState[0].id,
@@ -239,7 +321,7 @@ function extractGraphElements(ast) {
         });
       }
     } else {
-      nowState[nowState.length - 1].nodes.push(calleeName);
+      lastState.nodes.push(calleeName);
     }
 
     functionTable.set(nowState[0].id, funcData);
@@ -262,7 +344,7 @@ function extractGraphElements(ast) {
   function localCallExpression(calleeName) {
     const funcData = functionTable.get(nowState[0].id);
     funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
-    nowState.push({ id: calleeName, isOpen: false, isType: 3 });
+    nowState.push({ id: calleeName, isOpen: false, isType: "FunctionCall" });
     funcData.edges.push({
       from: nowState[nowState.length - 2].id,
       to: calleeName,
@@ -276,7 +358,7 @@ function extractGraphElements(ast) {
       enter(path) {
         console.log("Funtion enter");
         const name = path.node.id?.name || "(anonymous)"; // 익명함수 처리
-        nowState.push({ id: name, isOpen: false, isType: 0 });
+        nowState.push({ id: name, isOpen: false, isType: "GlobalCall" });
         functionTable.set(nowState[nowState.length - 1].id, {
           name: nowState[nowState.length - 1].id,
           nodes: [{ id: "Start", nodeType: "EntryPoint" }],
@@ -337,8 +419,11 @@ function extractGraphElements(ast) {
     },
     CallExpression: {
       enter(path) {
-        console.log("CallExpression");
-        handleCallExpression(path);
+        handleCallEnterExpression(path);
+      },
+      exit(path) {
+        console.log(`CallExpression exit ${path.node.callee.name}`);
+        handleCallExitExpression(path);
       },
     },
   });
@@ -359,6 +444,35 @@ function extractGraphElements(ast) {
   return functionTable;
 }
 
+function makeAllGraph(functionTable) {
+  functionTable.set("All", {
+    name: "All",
+    nodes: [],
+    edges: [],
+  });
+
+  for (const [key, value] of functionTable) {
+    if (key !== "All") {
+      const funcData = functionTable.get(key);
+      if (
+        funcData.edges[funcData.edges.length - 1].to ===
+          funcData.edges[funcData.edges.length - 2].to &&
+        funcData.edges[funcData.edges.length - 1].from ===
+          funcData.edges[funcData.edges.length - 2].from
+      ) {
+        funcData.edges.pop();
+      }
+      funcData.nodes = funcData.nodes.slice(1, -1); // Start, End 노드 제거
+      funcData.edges = funcData.edges.slice(1, -1); // Start, End 엣지 제거
+      functionTable.get("All").nodes.push(...funcData.nodes);
+      functionTable.get("All").edges.push(...funcData.edges);
+    }
+  }
+
+  return functionTable;
+}
+
 module.exports = {
   extractGraphElements,
+  makeAllGraph,
 };

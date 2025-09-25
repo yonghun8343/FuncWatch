@@ -7,14 +7,14 @@ function M() {
   M1();
   if (cond1 == 1) {
     M2();
-  } else {
-    M7();
     if (cond1 == 2) {
       M8();
     } else {
       M9();
     }
     M3();
+  } else {
+    M7();
   }
 
   while (cond2 < 3) {

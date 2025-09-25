@@ -8,7 +8,6 @@ function M() {
   if (cond1 == 1) {
     M2();
   } else {
-    M7();
     if (cond1 == 2) {
       M8();
     } else {
@@ -39,7 +38,7 @@ function M2() {
 }
 
 function M3() {
-  return 3;
+  M8();
 }
 
 function M4() {
@@ -51,7 +50,10 @@ function M5() {
 }
 
 function M6() {
-  return 6;
+  if (cond4 == 4) {
+    M8();
+  }
+  M10();
 }
 
 function M7() {
@@ -59,7 +61,7 @@ function M7() {
 }
 
 function M8() {
-  return 8;
+  M9();
 }
 
 function M9() {
