@@ -1,17 +1,19 @@
 if (true) {
-  n 
+  M1();
 } else {
   M2();
-  if (true) {
-    M3();
-  } else {
-    M4();
-  }
 }
 
 function M1() {
   return 1;
 }
+
+if (true) {
+  M3();
+} else {
+  M4();
+}
+
 function M2() {
   return 2;
 }

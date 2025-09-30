@@ -20,7 +20,7 @@ function extractGraphElements(ast) {
 
   function handleIfEnterStatement(path) {
     const condId = `cond${++condCount}`;
-    const funcData = functionTable.get(nowState[0].id);
+    const funcData = functionTable.get(nowState[0]?.id || startName.name);
     const lastState = nowState[nowState.length - 1];
     funcData.nodes.push({ id: condId, nodeType: "Condition" });
 

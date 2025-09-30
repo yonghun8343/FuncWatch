@@ -18,7 +18,7 @@ function main(inputFile, dotFile, imageFile) {
 
 // 예시 실행
 if (require.main === module) {
-  const inputFile = "./Test/function_test9.js";
+  const inputFile = "./Test/function_t.js";
   const dotFile = "output.dot";
   const imageFile = "graph.png";
   main(inputFile, dotFile, imageFile);
