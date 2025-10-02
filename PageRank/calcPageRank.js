@@ -83,7 +83,7 @@ function redistributeCondRanks(rank, outbound) {
   const newRank = { ...rank };
 
   for (const node in rank) {
-    if (node.startsWith("cond")) {
+    if (node.includes("cond")) {
       const score = newRank[node];
       const outs = outbound[node] || [];
       if (outs.length > 0) {

@@ -1,7 +1,8 @@
 const traverse = require("@babel/traverse").default;
 
 class GraphBuilder {
-  constructor() {
+  constructor(scopeName) {
+    this.scopeName = scopeName;
     this.nodes = [];
     this.edges = [];
     this.condCounter = 0;
@@ -18,7 +19,7 @@ class GraphBuilder {
   }
 
   _createCondNode() {
-    const condId = `cond${++this.condCounter}`;
+    const condId = `${this.scopeName}:cond${++this.condCounter}`;
     this._addNode({ id: condId, nodeType: "Condition", label: "cond" });
     return condId;
   }
@@ -159,7 +160,7 @@ function generateCompleteGraphs(ast) {
   });
 
   // 2단계: 전역 스코프 그래프 생성
-  const globalBuilder = new GraphBuilder();
+  const globalBuilder = new GraphBuilder("(global)");
   const globalStartId = "(global):Start";
   const globalEndId = "(global):End";
   globalBuilder._addNode({
@@ -200,7 +201,7 @@ function generateCompleteGraphs(ast) {
 
   // 3단계: 미리 찾아둔 각 함수에 대해 상세 내부 그래프 생성
   for (const [funcName, funcPath] of functionDefinitions.entries()) {
-    const funcBuilder = new GraphBuilder();
+    const funcBuilder = new GraphBuilder(funcName);
     const startId = `${funcName}:Start`;
     const endId = `${funcName}:End`;
     funcBuilder._addNode({
@@ -222,40 +223,116 @@ function generateCompleteGraphs(ast) {
     });
   }
 
-  // console.log(JSON.stringify([...allGraphs], null, 2));
+  console.log(JSON.stringify([...allGraphs], null, 2));
 
   return allGraphs;
 }
 
-function makeAllGraph(functionTable) {
-  functionTable.set("All", {
-    name: "All",
-    nodes: [],
-    edges: [],
-  });
+/**
+ * 분리된 모든 그래프를 하나의 전체 프로그램 그래프로 병합합니다.
+ * @param {Map<string, object>} allGraphs - '(global)' 및 각 함수 이름을 key로 갖는 그래프 Map
+ * @returns {object} - 모든 노드와 엣지가 통합된 단일 그래프 객체
+ */
+function mergeAllGraphs(allGraphs) {
+  const mergedGraph = { nodes: [], edges: [] };
+  const callSiteInfo = new Map(); // 함수 호출 정보를 저장할 Map
 
-  for (const [key, value] of functionTable) {
-    if (key !== "All") {
-      const funcData = functionTable.get(key);
-      if (
-        funcData.edges[funcData.edges.length - 1].to ===
-          funcData.edges[funcData.edges.length - 2].to &&
-        funcData.edges[funcData.edges.length - 1].from ===
-          funcData.edges[funcData.edges.length - 2].from
-      ) {
-        funcData.edges.pop();
+  // 1단계: 모든 노드와 '내부' 엣지 수집 및 호출 정보 식별
+  for (const [graphName, graph] of allGraphs.entries()) {
+    // FunctionCall 노드를 제외한 모든 노드를 추가
+    graph.nodes.forEach((node) => {
+      if (node.nodeType !== "FunctionCall") {
+        mergedGraph.nodes.push(node);
       }
-      funcData.nodes = funcData.nodes.slice(1, -1); // Start, End 노드 제거
-      funcData.edges = funcData.edges.slice(1, -1); // Start, End 엣지 제거
-      functionTable.get("All").nodes.push(...funcData.nodes);
-      functionTable.get("All").edges.push(...funcData.edges);
-    }
+    });
+
+    // 엣지를 순회하며 내부 엣지와 호출 엣지를 구분
+    graph.edges.forEach((edge) => {
+      const fromNode = graph.nodes.find((n) => n.id === edge.from);
+      const toNode = graph.nodes.find((n) => n.id === edge.to);
+
+      const isFromCall = fromNode && fromNode.nodeType === "FunctionCall";
+      const isToCall = toNode && toNode.nodeType === "FunctionCall";
+
+      if (!isFromCall && !isToCall) {
+        // 일반 내부 엣지: 그대로 추가
+        mergedGraph.edges.push(edge);
+      } else {
+        // 호출과 관련된 엣지: 나중에 연결하기 위해 정보 저장
+        if (isToCall) {
+          // 호출 지점으로 들어오는 엣지 (예: Start -> call M)
+          if (!callSiteInfo.has(toNode.id))
+            callSiteInfo.set(toNode.id, {
+              incomings: [],
+              outgoings: [],
+              calleeName: toNode.label.replace("call ", ""),
+            });
+          callSiteInfo.get(toNode.id).incomings.push(fromNode.id);
+        }
+        if (isFromCall) {
+          // 호출 지점에서 나가는 엣지 (예: call M -> End)
+          if (!callSiteInfo.has(fromNode.id))
+            callSiteInfo.set(fromNode.id, {
+              incomings: [],
+              outgoings: [],
+              calleeName: fromNode.label.replace("call ", ""),
+            });
+          callSiteInfo.get(fromNode.id).outgoings.push(toNode.id);
+        }
+      }
+    });
   }
 
-  return functionTable;
+  // 2단계: 저장된 호출 정보를 바탕으로 그래프 연결하기
+  for (const [callNodeId, info] of callSiteInfo.entries()) {
+    const calleeGraph = allGraphs.get(info.calleeName);
+    if (!calleeGraph) continue; // 호출되는 함수 정보가 없으면 건너뛰기
+
+    const calleeStartNode = `${info.calleeName}:Start`;
+    const calleeEndNode = `${info.calleeName}:End`;
+
+    // 호출 지점의 '이전' 노드들을 -> 호출된 함수의 'Start' 노드에 연결
+    info.incomings.forEach((incomingNodeId) => {
+      mergedGraph.edges.push({
+        from: incomingNodeId,
+        to: calleeStartNode,
+        edgeType: "control",
+        label: `call ${info.calleeName}`,
+      });
+    });
+
+    // 호출된 함수의 'End' 직전 노드들을 -> 호출 지점의 '이후' 노드에 연결
+    const terminalNodes = calleeGraph.edges
+      .filter((e) => e.to === calleeEndNode)
+      .map((e) => e.from);
+
+    terminalNodes.forEach((terminalNodeId) => {
+      info.outgoings.forEach((outgoingNodeId) => {
+        mergedGraph.edges.push({
+          from: terminalNodeId,
+          to: outgoingNodeId,
+          edgeType: "control",
+          label: `return from ${info.calleeName}`,
+        });
+      });
+    });
+  }
+
+  // 3단계: 중복된 노드 제거
+  const uniqueNodes = [];
+  const seenNodes = new Set();
+  for (const node of mergedGraph.nodes) {
+    if (!seenNodes.has(node.id)) {
+      uniqueNodes.push(node);
+      seenNodes.add(node.id);
+    }
+  }
+  mergedGraph.nodes = uniqueNodes;
+
+  return mergedGraph;
 }
 
 module.exports = {
   generateCompleteGraphs,
-  makeAllGraph,
+  mergeAllGraphs,
 };
