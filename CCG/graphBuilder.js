@@ -1,447 +1,230 @@
 const traverse = require("@babel/traverse").default;
 
-const startName = { id: "global:Start", scope: "global", name: "Start" };
-const endName = { id: "global:End", scope: "global", name: "End" };
+class GraphBuilder {
+  constructor() {
+    this.nodes = [];
+    this.edges = [];
+    this.condCounter = 0;
+  }
 
-// stateType: 0 -> Call
-// stateType: 1 -> IfStatement
-// stateType: 2 -> WhileStatement
-// stateType: 3 -> FunctionCall
-const functionTable = new Map();
-functionTable.set(startName.name, {
-  name: startName.name,
-  nodes: [{ id: "Start", nodeType: "EntryPoint" }],
-  edges: [],
-});
-let condCount = 0;
+  _addNode(node) {
+    if (!this.nodes.some((n) => n.id === node.id)) {
+      this.nodes.push(node);
+    }
+  }
 
-function extractGraphElements(ast) {
-  let nowState = [];
+  _addEdge(edge) {
+    this.edges.push(edge);
+  }
 
-  function handleIfEnterStatement(path) {
-    const condId = `cond${++condCount}`;
-    const funcData = functionTable.get(nowState[0]?.id || startName.name);
-    const lastState = nowState[nowState.length - 1];
-    funcData.nodes.push({ id: condId, nodeType: "Condition" });
+  _createCondNode() {
+    const condId = `cond${++this.condCounter}`;
+    this._addNode({ id: condId, nodeType: "Condition", label: "cond" });
+    return condId;
+  }
 
-    if (!lastState.isOpen && lastState.exitNodes?.length) {
-      lastState.exitNodes.forEach((child) => {
-        funcData.edges.push({
-          from: child,
-          to: condId,
-          edgeType: "call",
-        });
-      });
-      lastState.exitNodes = [];
+  /**
+   * AST 노드(path)를 재귀적으로 처리하여 그래프를 생성하는 핵심 메서드
+   * @param {NodePath | NodePath[]} path - 처리할 AST 노드 또는 노드 배열의 Babel Path
+   * @param {string[]} entryNodeIds - 이 그래프의 진입점과 연결될 노드 ID들의 배열
+   * @param {boolean} isGlobalScope - 현재 전역 스코프를 처리 중인지 여부
+   * @returns {string[]} - 이 그래프를 모두 통과한 후의 출구(Exit) 노드 ID들의 배열
+   */
+  _process(path, entryNodeIds, isGlobalScope = false) {
+    if (Array.isArray(path)) {
+      let currentEntryIds = entryNodeIds;
+      for (const itemPath of path) {
+        currentEntryIds = this._process(
+          itemPath,
+          currentEntryIds,
+          isGlobalScope
+        );
+      }
+      return currentEntryIds;
     }
 
-    // if문이 끝났을 때 상위 if문이 있다면 if / else 블록에 연결
-    if (lastState.isOpen) {
-      if (
-        path.scope.path.parentPath.type === "IfStatement" &&
-        path.scope.path.key === "consequent" &&
-        lastState.if.length > 0
-      ) {
-        funcData.edges.push({
-          from: lastState.if[lastState.if.length - 1],
-          to: condId,
-          edgeType: "control",
-        });
-      } else if (
-        path.scope.path.parentPath.type === "IfStatement" &&
-        path.scope.path.key === "alternate" &&
-        lastState.else.length > 0
-      ) {
-        funcData.edges.push({
-          from: lastState.else[lastState.else.length - 1],
-          to: condId,
-          edgeType: "control",
-        });
+    if (!path || !path.node) return entryNodeIds;
+
+    if (path.isReturnStatement()) {
+      console.log("isReturnStatement");
+      // return 문에 인자(argument)가 있는지 확인 (예: 'return;'은 인자가 없음)
+      if (path.has("argument") && path.get("argument").node) {
+        // 인자(a(i))가 있으므로, 인자에 대해 재귀적으로 _process를 호출하여
+        // 하위 그래프(call a 노드)를 생성하고 그 출구를 받아온다.
+        return this._process(path.get("argument"), entryNodeIds, isGlobalScope);
       } else {
-        funcData.edges.push({
-          from: lastState.id,
+        // 인자가 없는 'return;' 이므로, 이 경로는 바로 종료된다.
+        // 이 경로의 출구는 entryNodeIds가 된다. (이전 노드에서 바로 End로 연결됨)
+        return entryNodeIds;
+      }
+    }
+
+    // 전역 스코프 처리 중 함수 선언을 만나면 실행 흐름이 아니므로 건너뛴다.
+    if (isGlobalScope && path.isFunctionDeclaration()) {
+      return entryNodeIds;
+    }
+
+    if (path.isExpressionStatement()) {
+      console.log("isExpressionStatement");
+      return this._process(path.get("expression"), entryNodeIds, isGlobalScope);
+    }
+
+    if (path.isCallExpression()) {
+      console.log("isCallExpression");
+      const calleeName = path.get("callee").toString() || "(anonymous)";
+      this._addNode({
+        id: calleeName,
+        nodeType: "FunctionCall",
+        label: `call ${calleeName}`,
+      });
+      entryNodeIds.forEach((entry) => {
+        this._addEdge({ from: entry, to: calleeName, edgeType: "control" });
+      });
+      return [calleeName];
+    }
+
+    if (path.isBlockStatement()) {
+      console.log("isBlockStatement");
+      return this._process(path.get("body"), entryNodeIds, isGlobalScope);
+    }
+
+    if (path.isIfStatement()) {
+      console.log("isIfStatement");
+      const condId = this._createCondNode();
+      entryNodeIds.forEach((entry) =>
+        this._addEdge({ from: entry, to: condId, edgeType: "control" })
+      );
+      const thenExitIds = this._process(
+        path.get("consequent"),
+        [condId],
+        isGlobalScope
+      );
+      const elseExitIds = this._process(
+        path.get("alternate"),
+        [condId],
+        isGlobalScope
+      );
+      return [...thenExitIds, ...elseExitIds];
+    }
+
+    if (path.isWhileStatement()) {
+      console.log("isWhileStatement");
+      const condId = this._createCondNode();
+      entryNodeIds.forEach((entry) =>
+        this._addEdge({ from: entry, to: condId, edgeType: "control" })
+      );
+      const bodyExitIds = this._process(
+        path.get("body"),
+        [condId],
+        isGlobalScope
+      );
+      bodyExitIds.forEach((exitId) =>
+        this._addEdge({
+          from: exitId,
           to: condId,
           edgeType: "control",
-        });
-      }
-    } else {
-      funcData.edges.push({
-        from: lastState.id || startName.name,
-        to: condId,
-        edgeType: "control",
-      });
+          label: "loop",
+        })
+      );
+      return [condId];
     }
 
-    nowState.push({
-      id: condId,
-      isOpen: true,
-      isType: "IfStatement",
-      if: [],
-      else: [],
-    });
-
-    functionTable.set(nowState[0].id, funcData);
+    return entryNodeIds;
   }
+}
 
-  function handleIfExitStatement(path) {
-    const funcData = functionTable.get(nowState[0].id);
-    const curr = nowState.pop();
-    curr.exitNodes = [
-      ...(curr.exitNodes || []),
-      ...(curr.if?.length ? [curr.if[curr.if.length - 1]] : []),
-      ...(curr.else?.length ? [curr.else[curr.else.length - 1]] : []),
-    ];
-    const lastState = nowState[nowState.length - 1];
-    lastState.exitType = "IfStatement";
-    lastState.lastNode = curr.exitNodes[curr.exitNodes.length - 1];
-    if (lastState) {
-      if (!lastState.exitNodes) lastState.exitNodes = [];
-      lastState.exitNodes.push(...curr.exitNodes);
-    } else {
-      // 최상위 (함수 레벨)이면 functionTable에 기록
-      // funcData.pendingExits = (funcData.pendingExits || []).concat(
-      //   curr.exitNodes
-      // );
-    }
+/**
+ * 전체 프로그램에서 전역 스코프 그래프와 모든 함수별 그래프를 생성하는 메인 함수
+ * @param {AST} ast - 전체 파일의 AST
+ * @returns {Map<string, object>} - '(global)' 및 각 함수 이름을 key로 갖는 그래프 객체들의 Map
+ */
+function generateCompleteGraphs(ast) {
+  const allGraphs = new Map();
+  const functionDefinitions = new Map();
 
-    console.log(nowState);
-
-    functionTable.set(nowState[0].id, funcData);
-  }
-
-  function handleWhileEnterStatement(path) {
-    const condId = `cond${++condCount}`;
-    const lastState = nowState[nowState.length - 1];
-    const funcData = functionTable.get(nowState[0].id);
-    funcData.nodes.push({ id: condId, nodeType: "Condition" });
-    if (!lastState.isOpen && lastState.exitNodes?.length) {
-      lastState.exitNodes.forEach((child) => {
-        funcData.edges.push({
-          from: child,
-          to: condId,
-          edgeType: "call",
-        });
-      });
-      lastState.exitNodes = [];
-    } else {
-      funcData.edges.push({
-        from: lastState.id || startName.name,
-        to: condId,
-        edgeType: "control",
-      });
-    }
-    nowState.push({
-      id: condId,
-      isOpen: true,
-      isType: "WhileStatement",
-      nodes: [],
-    });
-
-    console.log(nowState);
-    functionTable.set(nowState[0].id, funcData);
-  }
-
-  function handleWhileExitStatement(path) {
-    const funcData = functionTable.get(nowState[0].id);
-    const curr = nowState.pop();
-    let lastNode = curr.id;
-    curr.nodes.forEach((child) => {
-      funcData.edges.push({
-        from: lastNode,
-        to: child,
-        edgeType: "control",
-      });
-      lastNode = child;
-    });
-    funcData.edges.push({
-      from: lastNode,
-      to: curr.id,
-      edgeType: "control",
-    });
-    nowState[nowState.length - 1].exitNodes = [
-      ...(nowState[nowState.length - 1].exitNodes || []),
-      curr.id,
-    ];
-    nowState[nowState.length - 1].exitType = "WhileStatement";
-
-    // while문이 끝났을 때 상위 if문이 있다면 if / else 블록에 연결
-    if (nowState[nowState.length - 1].isOpen) {
-      if (nowState[nowState.length - 1].else.length === 0) {
-        funcData.edges.push({
-          from: nowState[nowState.length - 1].if[
-            nowState[nowState.length - 1].if.length - 1
-          ],
-          to: curr.id,
-          edgeType: "control",
-        });
-      } else {
-        funcData.edges.push({
-          from: nowState[nowState.length - 1].else[
-            nowState[nowState.length - 1].else.length - 1
-          ],
-          to: curr.id,
-          edgeType: "control",
-        });
-      }
-    }
-    functionTable.set(nowState[0].id, funcData);
-  }
-
-  function handleCallEnterExpression(path) {
-    const calleeName = path.node.callee?.name || "(anonymous)"; // 익명함수 처리
-    if (nowState.length > 0) {
-      const lastState = nowState[nowState.length - 1];
-      if (
-        (lastState.isType === "IfStatement" && lastState.isOpen) ||
-        lastState.exitType === "IfStatement"
-      ) {
-        console.log(`IfCallExpression enter ${calleeName}`);
-        IfCallExpression(path, calleeName);
-      } else if (
-        (lastState.isType === "WhileStatement" && lastState.isOpen) ||
-        lastState.exitType === "WhileStatement"
-      ) {
-        console.log(`WhileStatement enter ${calleeName}`);
-        WhileCallExpression(calleeName);
-      } else {
-        console.log(`LocalCallExpression enter ${calleeName}`);
-        localCallExpression(calleeName);
-      }
-    } else {
-      console.log(`globalCallExpression enter ${calleeName}`);
-      globalCallExpression(calleeName);
-    }
-    console.log(nowState);
-  }
-
-  function handleCallExitExpression(path) {
-    const calleeName = path.node.callee?.name || "(anonymous)"; // 익명함수 처리
-    if (nowState.length) {
-      if (!nowState[nowState.length - 1].isOpen) {
-        nowState[nowState.length - 1].exitNodes = [
-          ...(nowState[nowState.length - 1].exitNodes || []),
-          calleeName,
-        ];
-        nowState[nowState.length - 1].exitType = "FunctionCall";
-      }
-    }
-  }
-
-  function IfCallExpression(path, calleeName) {
-    const funcData = functionTable.get(nowState[0].id);
-    const lastState = nowState[nowState.length - 1];
-    funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
-    console.log("======================");
-    console.log(lastState);
-    if (lastState.isOpen) {
-      // else if를 확인하지 않는 이유는
-      // if(consequent) else alternate 안에서 다시 if, else로 나뉘기 때문
-      // if 블록인지 확인
-      if (
-        path.scope.path.parentPath.type === "IfStatement" &&
-        path.scope.path.key === "consequent"
-      ) {
-        if (!lastState.if.length && !lastState.lastNode) {
-          funcData.edges.push({
-            from: lastState.id,
-            to: calleeName,
-            edgeType: "control",
-          });
-        } else {
-          if (lastState.lastNode) {
-            funcData.edges.push({
-              from: lastState.lastNode,
-              to: calleeName,
-              edgeType: "control",
-            });
-          }
-        }
-        lastState.if.push(calleeName);
-      }
-
-      // else 블록인지 확인
-      if (
-        path.scope.path.parentPath.type === "IfStatement" &&
-        path.scope.path.key === "alternate"
-      ) {
-        if (!lastState.else.length && !lastState.exitType) {
-          funcData.edges.push({
-            from: lastState.id,
-            to: calleeName,
-            edgeType: "control",
-          });
-        } else {
-          if (lastState.lastNode) {
-            funcData.edges.push({
-              from: lastState.lastNode,
-              to: calleeName,
-              edgeType: "control",
-            });
-          }
-        }
-        lastState.lastNode = calleeName;
-        lastState.else.push(calleeName);
-      }
-    }
-
-    if (lastState.exitNodes?.length) {
-      lastState.exitNodes.forEach((child) => {
-        funcData.edges.push({
-          from: child,
-          to: calleeName,
-          edgeType: "control",
-        });
-      });
-      lastState.lastNode = "";
-      lastState.exitNodes = [];
-    }
-
-    functionTable.set(nowState[0].id, funcData);
-  }
-
-  function WhileCallExpression(calleeName) {
-    const funcData = functionTable.get(nowState[0].id);
-    funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
-    const lastState = nowState[nowState.length - 1];
-    if (!lastState.isOpen) {
-      if (lastState.exitNodes?.length) {
-        lastState.exitNodes.forEach((child) => {
-          funcData.edges.push({
-            from: child,
-            to: calleeName,
-            edgeType: "call",
-          });
-        });
-        lastState.exitNodes = [];
-      } else {
-        funcData.edges.push({
-          from: nowState[0].id,
-          to: calleeName,
-          edgeType: "call",
-        });
-      }
-    } else {
-      lastState.nodes.push(calleeName);
-    }
-
-    functionTable.set(nowState[0].id, funcData);
-  }
-
-  function globalCallExpression(calleeName) {
-    const funcData = functionTable.get(startName.name);
-    funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
-    funcData.edges.push({
-      from:
-        funcData.edges.length > 0
-          ? `${funcData.edges[funcData.edges.length - 1].to}`
-          : startName.name,
-      to: calleeName,
-      edgeType: "control",
-    });
-    functionTable.set(startName.name, funcData);
-  }
-
-  function localCallExpression(calleeName) {
-    const funcData = functionTable.get(nowState[0].id);
-    funcData.nodes.push({ id: calleeName, nodeType: "FunctionCall" });
-    nowState.push({ id: calleeName, isOpen: false, isType: "FunctionCall" });
-    funcData.edges.push({
-      from: nowState[nowState.length - 2].id,
-      to: calleeName,
-      edgeType: "call",
-    });
-    functionTable.set(nowState[0].id, funcData);
-  }
-
+  // 1단계: AST를 순회하며 모든 함수 정의의 위치(path)를 미리 저장
   traverse(ast, {
-    Function: {
-      enter(path) {
-        console.log("Funtion enter");
-        const name = path.node.id?.name || "(anonymous)"; // 익명함수 처리
-        nowState.push({ id: name, isOpen: false, isType: "GlobalCall" });
-        functionTable.set(nowState[nowState.length - 1].id, {
-          name: nowState[nowState.length - 1].id,
-          nodes: [{ id: "Start", nodeType: "EntryPoint" }],
-          edges: [
-            {
-              from: "Start",
-              to: nowState[nowState.length - 1].id,
-              edgeType: "control",
-            },
-          ],
-        });
-      },
-      exit(path) {
-        console.log("Funtion exit");
-        const name = path.node.id?.name || "(anonymous)";
-        if (functionTable.has(name)) {
-          const funcData = functionTable.get(name);
-          funcData.nodes.push({ id: endName.name, nodeType: "ExitPoint" });
-          if (nowState[nowState.length - 1].exitNodes?.length) {
-            nowState[nowState.length - 1].exitNodes.forEach((child) => {
-              funcData.edges.push({
-                from: child,
-                to: endName.name,
-                edgeType: "control",
-              });
-            });
-          } else {
-            funcData.edges.push({
-              from: `${funcData.edges[funcData.edges.length - 1].to}`,
-              to: endName.name,
-              edgeType: "control",
-            });
-          }
-          functionTable.set(name, funcData);
-        }
-        nowState = [];
-      },
-    },
-    IfStatement: {
-      enter(path) {
-        console.log("IfStatement enter");
-        handleIfEnterStatement(path);
-      },
-      exit(path) {
-        console.log("IfStatement exit");
-        handleIfExitStatement(path);
-      },
-    },
-    WhileStatement: {
-      enter(path) {
-        console.log("WhileStatement enter");
-        handleWhileEnterStatement(path);
-      },
-      exit(path) {
-        console.log("WhileStatement exit");
-        handleWhileExitStatement(path);
-      },
-    },
-    CallExpression: {
-      enter(path) {
-        handleCallEnterExpression(path);
-      },
-      exit(path) {
-        console.log(`CallExpression exit ${path.node.callee.name}`);
-        handleCallExitExpression(path);
-      },
+    Function(path) {
+      if (
+        path.isFunctionDeclaration() ||
+        path.isFunctionExpression() ||
+        path.isArrowFunctionExpression()
+      ) {
+        const funcName =
+          (path.node.id && path.node.id.name) ||
+          `(anonymous${functionDefinitions.size + 1})`;
+        functionDefinitions.set(funcName, path);
+      }
     },
   });
 
-  const funcData = functionTable.get(startName.name);
-  funcData.nodes.push({ id: endName.name, nodeType: "ExitPoint" });
-  funcData.edges.push({
-    from: `${funcData.edges[funcData.edges.length - 1].to || "Start"}`,
-    to: endName.name,
-    edgeType: "control",
+  // 2단계: 전역 스코프 그래프 생성
+  const globalBuilder = new GraphBuilder();
+  const globalStartId = "(global):Start";
+  const globalEndId = "(global):End";
+  globalBuilder._addNode({
+    id: globalStartId,
+    nodeType: "EntryPoint",
+    label: "Start",
   });
-  functionTable.set(startName.name, funcData);
+  globalBuilder._addNode({
+    id: globalEndId,
+    nodeType: "ExitPoint",
+    label: "End",
+  });
 
-  for (const [key, value] of functionTable) {
-    console.log(key, value);
+  let globalFinalExits = [];
+  traverse(ast, {
+    Program(path) {
+      // isGlobalScope 플래그를 true로 설정하여 _process 호출
+      globalFinalExits = globalBuilder._process(
+        path.get("body"),
+        [globalStartId],
+        true
+      );
+      path.stop();
+    },
+  });
+  globalFinalExits.forEach((exitId) => {
+    globalBuilder._addEdge({
+      from: exitId,
+      to: globalEndId,
+      edgeType: "control",
+    });
+  });
+  allGraphs.set("(global)", {
+    name: "(global)",
+    nodes: globalBuilder.nodes,
+    edges: globalBuilder.edges,
+  });
+
+  // 3단계: 미리 찾아둔 각 함수에 대해 상세 내부 그래프 생성
+  for (const [funcName, funcPath] of functionDefinitions.entries()) {
+    const funcBuilder = new GraphBuilder();
+    const startId = `${funcName}:Start`;
+    const endId = `${funcName}:End`;
+    funcBuilder._addNode({
+      id: startId,
+      nodeType: "EntryPoint",
+      label: "Start",
+    });
+    funcBuilder._addNode({ id: endId, nodeType: "ExitPoint", label: "End" });
+
+    const finalExits = funcBuilder._process(funcPath.get("body"), [startId]);
+    finalExits.forEach((exitId) => {
+      funcBuilder._addEdge({ from: exitId, to: endId, edgeType: "control" });
+    });
+
+    allGraphs.set(funcName, {
+      name: funcName,
+      nodes: funcBuilder.nodes,
+      edges: funcBuilder.edges,
+    });
   }
 
-  return functionTable;
+  // console.log(JSON.stringify([...allGraphs], null, 2));
+
+  return allGraphs;
 }
 
 function makeAllGraph(functionTable) {
@@ -473,6 +256,6 @@ function makeAllGraph(functionTable) {
 }
 
 module.exports = {
-  extractGraphElements,
+  generateCompleteGraphs,
   makeAllGraph,
 };

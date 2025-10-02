@@ -7,7 +7,7 @@ function buildPRGraph(functionTable) {
     nodeNames.push(funcName);
     const { nodes, edges } = funcData;
     for (const node of nodes) {
-      if (node.id === "Start" || node.id === "End") continue;
+      if (node.id.endsWith("Start") || node.id.endsWith("End")) continue;
       if (!inbound[node.id]) {
         inbound[node.id] = [];
       }
@@ -17,10 +17,10 @@ function buildPRGraph(functionTable) {
     }
     for (const edge of edges) {
       if (
-        edge.to === "Start" ||
-        edge.to === "End" ||
-        edge.from === "Start" ||
-        edge.from === "End"
+        edge.to.endsWith("Start") ||
+        edge.to.endsWith("End") ||
+        edge.from.endsWith("Start") ||
+        edge.from.endsWith("End")
       )
         continue;
       inbound[edge.to].push(edge.from);
@@ -30,8 +30,8 @@ function buildPRGraph(functionTable) {
 
   nodeNames.shift();
 
-  // console.log(inbound);
-  // console.log(outbound);
+  console.log(inbound);
+  console.log(outbound);
 
   return pageRank(inbound, outbound);
 }
@@ -69,13 +69,16 @@ function pageRank(inbound, outbound, d = 0.85, maxIter = 100, tol = 1.0e-6) {
     if (diff < tol) break;
   }
 
-  // console.log(rank);
-  // const total = Object.values(rank).reduce((a, b) => a + b, 0);
-  // console.log("합:", total);
+  console.log(rank);
+  const total = Object.values(rank).reduce((a, b) => a + b, 0);
+  console.log("합:", total);
+
+  console.log("=====================================");
 
   return redistributeCondRanks(rank, outbound);
 }
 
+// cond가 있을 경우 cond의 rank를 그 다음 노드들에 분배
 function redistributeCondRanks(rank, outbound) {
   const newRank = { ...rank };
 
@@ -93,9 +96,9 @@ function redistributeCondRanks(rank, outbound) {
     }
   }
 
-  // console.log(newRank);
-  // const total = Object.values(newRank).reduce((a, b) => a + b, 0);
-  // console.log("합:", total);
+  console.log(newRank);
+  const total = Object.values(newRank).reduce((a, b) => a + b, 0);
+  console.log("합:", total);
 
   return newRank;
 }
