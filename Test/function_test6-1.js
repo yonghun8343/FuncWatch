@@ -15,6 +15,7 @@ function M() {
     }
     M5();
   }
+  M51();
 
   while (cond2 < 3) {
     M6();
@@ -68,6 +69,10 @@ function M9() {
 
 function M10() {
   return 10;
+}
+
+function M51() {
+  return 51;
 }
 
 M();

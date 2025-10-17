@@ -3,13 +3,13 @@ let cond2 = 2;
 
 function M() {
   if (cond1 == 1) {
-    M2();
+    M1();
   } else if (cond2 == 2) {
-    M3();
+    M2();
   } else {
-    M4();
+    M3();
   }
-  M5();
+  M4();
 }
 
 function M2() {

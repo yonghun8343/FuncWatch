@@ -1,0 +1,7 @@
+strict digraph {
+  "M:Start" [label="M:Start",shape=circle,type=EntryPoint]
+  "M:End" [label="M:End",shape=circle,type=ExitPoint]
+  M1 [label=M1,shape=circle,type=FunctionCall]
+  "M:Start" -> M1 [type=control]
+  M1 -> "M:End" [type=control]
+}

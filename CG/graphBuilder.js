@@ -93,14 +93,14 @@ function extractGraphElements(ast) {
   });
   functionTable.set(startName.name, funcData);
 
-  // for (const [key, value] of functionTable) {
-  //   console.log(key, value);
-  // }
+  for (const [key, value] of functionTable) {
+    console.log(key, value);
+  }
 
   return functionTable;
 }
 
-function makeAllGraph(functionTable) {
+function CGmakeAllGraph(functionTable) {
   functionTable.set("All", {
     name: "All",
     nodes: [],
@@ -111,10 +111,10 @@ function makeAllGraph(functionTable) {
     if (key !== "All") {
       const funcData = functionTable.get(key);
       if (
-        funcData.edges[funcData.edges.length - 1].to ===
-          funcData.edges[funcData.edges.length - 2].to &&
-        funcData.edges[funcData.edges.length - 1].from ===
-          funcData.edges[funcData.edges.length - 2].from
+        funcData.edges[funcData.edges.length - 1]?.to ===
+          funcData.edges[funcData.edges.length - 2]?.to &&
+        funcData.edges[funcData.edges.length - 1]?.from ===
+          funcData.edges[funcData.edges.length - 2]?.from
       ) {
         funcData.edges.pop();
       }
@@ -125,10 +125,38 @@ function makeAllGraph(functionTable) {
     }
   }
 
+  const all = functionTable.get("All");
+
+  // Deduplicate nodes (preserve first occurrence)
+  const nodeSeen = new Set();
+  const uniqueNodes = [];
+  for (const node of all.nodes) {
+    const key = `${node.id}|${node.nodeType || ""}`;
+    if (!nodeSeen.has(key)) {
+      nodeSeen.add(key);
+      uniqueNodes.push(node);
+    }
+  }
+  all.nodes = uniqueNodes;
+
+  // Deduplicate edges (preserve first occurrence)
+  const edgeSeen = new Set();
+  const uniqueEdges = [];
+  for (const edge of all.edges) {
+    const key = `${edge.from}|${edge.to}|${edge.edgeType || ""}`;
+    if (!edgeSeen.has(key)) {
+      edgeSeen.add(key);
+      uniqueEdges.push(edge);
+    }
+  }
+  all.edges = uniqueEdges;
+
+  functionTable.set("All", all);
+
   return functionTable;
 }
 
 module.exports = {
   extractGraphElements,
-  makeAllGraph,
+  CGmakeAllGraph,
 };

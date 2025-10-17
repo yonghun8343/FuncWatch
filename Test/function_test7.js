@@ -9,19 +9,19 @@ function M() {
     M2();
   } else {
     if (cond1 == 2) {
-      M8();
+      M3();
     } else {
-      M9();
+      M4();
     }
-    M3();
+    M5();
   }
 
   while (cond2 < 3) {
-    M4();
-    M5();
+    M6();
+    M7();
     cond2++;
   }
-  M6();
+  M8();
 }
 
 function M1() {
