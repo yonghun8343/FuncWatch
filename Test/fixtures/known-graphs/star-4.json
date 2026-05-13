@@ -1,0 +1,19 @@
+{
+  "name": "star-4",
+  "description": "Star — 4 peripheral nodes all pointing to a center hub",
+  "nodes": [
+    {"id": "hub", "kind": "function", "name": "hub"},
+    {"id": "p1", "kind": "function", "name": "p1"},
+    {"id": "p2", "kind": "function", "name": "p2"},
+    {"id": "p3", "kind": "function", "name": "p3"},
+    {"id": "p4", "kind": "function", "name": "p4"}
+  ],
+  "edges": [
+    {"from": "p1", "to": "hub", "kind": "direct"},
+    {"from": "p2", "to": "hub", "kind": "direct"},
+    {"from": "p3", "to": "hub", "kind": "direct"},
+    {"from": "p4", "to": "hub", "kind": "direct"}
+  ],
+  "damping": 0.85,
+  "tolerance": 1e-4
+}

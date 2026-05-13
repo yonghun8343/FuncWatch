@@ -1,0 +1,17 @@
+{
+  "name": "chain-4",
+  "description": "Linear chain A→B→C→D",
+  "nodes": [
+    {"id": "A", "kind": "function", "name": "A"},
+    {"id": "B", "kind": "function", "name": "B"},
+    {"id": "C", "kind": "function", "name": "C"},
+    {"id": "D", "kind": "function", "name": "D"}
+  ],
+  "edges": [
+    {"from": "A", "to": "B", "kind": "direct"},
+    {"from": "B", "to": "C", "kind": "direct"},
+    {"from": "C", "to": "D", "kind": "direct"}
+  ],
+  "damping": 0.85,
+  "tolerance": 1e-4
+}

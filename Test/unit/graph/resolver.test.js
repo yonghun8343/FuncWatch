@@ -1,0 +1,223 @@
+/**
+ * Phase 2.2: resolver.js unit test
+ */
+
+'use strict';
+
+const traverse = require('@babel/traverse').default;
+const { parseSource } = require('../../../src/ast/parser');
+const { FunctionTable, isFunctionNode } = require('../../../src/ast/function-table');
+const {
+  ResolutionKind,
+  resolveCallee,
+  extractCallbackArgs,
+} = require('../../../src/graph/resolver');
+
+/**
+ * Test helper — Phase 1 visitor와 동등한 방식으로 function table 구축한 뒤,
+ * 첫 번째 CallExpression 에서 resolver 결과를 반환.
+ */
+function firstResolution(code, filePath = 'test.js') {
+  const ast = parseSource(code);
+  const functions = new FunctionTable();
+
+  traverse(ast, {
+    Function: {
+      enter(path) {
+        if (isFunctionNode(path.node)) {
+          functions.add(path.node, path.parent, filePath);
+        }
+      },
+    },
+  });
+
+  let resolution = null;
+  traverse(ast, {
+    CallExpression(path) {
+      if (resolution) return;
+      resolution = resolveCallee(path, functions, filePath);
+      path.skip();
+    },
+    OptionalCallExpression(path) {
+      if (resolution) return;
+      resolution = resolveCallee(path, functions, filePath);
+      path.skip();
+    },
+  });
+
+  return { resolution, functions };
+}
+
+describe('Phase 2.2: resolver', () => {
+  describe('resolveCallee — Identifier with binding', () => {
+    test('function declaration in scope → FUNCTION', () => {
+      const { resolution } = firstResolution('function foo() {} foo();');
+      expect(resolution.kind).toBe(ResolutionKind.FUNCTION);
+      expect(resolution.functionRecord.name).toBe('foo');
+    });
+
+    test('const x = function() {}; x() → FUNCTION', () => {
+      const { resolution } = firstResolution(
+        'const x = function () {}; x();'
+      );
+      expect(resolution.kind).toBe(ResolutionKind.FUNCTION);
+      expect(resolution.functionRecord.name).toBe('x');
+    });
+
+    test('const x = () => 1; x() → FUNCTION (arrow)', () => {
+      const { resolution } = firstResolution('const x = () => 1; x();');
+      expect(resolution.kind).toBe(ResolutionKind.FUNCTION);
+      expect(resolution.functionRecord.kind).toBe('arrow');
+    });
+
+    test('self-recursion: function rec() { rec(); } — inner call → FUNCTION (self)', () => {
+      // 첫 번째 call 은 외부에 없고 inner call 만 있음
+      const code = 'function rec(n) { return rec(n - 1); }';
+      const { resolution, functions } = firstResolution(code);
+      expect(resolution.kind).toBe(ResolutionKind.FUNCTION);
+      // self-loop: resolved function id 가 enclosing function 과 같아야 함
+      const recFn = functions.all().find((f) => f.name === 'rec');
+      expect(resolution.functionRecord.id).toBe(recFn.id);
+    });
+
+    test('cross-function: a() in b is resolved correctly', () => {
+      const { resolution } = firstResolution(
+        'function a() {} function b() { a(); } b();'
+      );
+      // 첫 번째 call site 는 b() (top-level)
+      expect(resolution.kind).toBe(ResolutionKind.FUNCTION);
+      expect(resolution.functionRecord.name).toBe('b');
+    });
+  });
+
+  describe('resolveCallee — Identifier without binding (external)', () => {
+    test('unknown identifier → EXTERNAL', () => {
+      const { resolution } = firstResolution('unknownFn();');
+      expect(resolution.kind).toBe(ResolutionKind.EXTERNAL);
+      expect(resolution.externalName).toBe('unknownFn');
+    });
+
+    test('console.log-like global → EXTERNAL via Identifier? Actually console is identifier → external; .log is member.', () => {
+      const { resolution } = firstResolution('parseInt("1");');
+      expect(resolution.kind).toBe(ResolutionKind.EXTERNAL);
+      expect(resolution.externalName).toBe('parseInt');
+    });
+  });
+
+  describe('resolveCallee — Member call', () => {
+    test('obj.method() → EXTERNAL with text', () => {
+      const { resolution } = firstResolution('obj.method();');
+      expect(resolution.kind).toBe(ResolutionKind.EXTERNAL);
+      expect(resolution.externalName).toBe('obj.method');
+    });
+
+    test('console.log() → EXTERNAL', () => {
+      const { resolution } = firstResolution('console.log("hi");');
+      expect(resolution.kind).toBe(ResolutionKind.EXTERNAL);
+      expect(resolution.externalName).toBe('console.log');
+    });
+
+    test('a.b.c() → EXTERNAL with dotted text', () => {
+      const { resolution } = firstResolution('a.b.c();');
+      expect(resolution.kind).toBe(ResolutionKind.EXTERNAL);
+      expect(resolution.externalName).toBe('a.b.c');
+    });
+
+    test('obj?.method() (optional) → EXTERNAL', () => {
+      const { resolution } = firstResolution('obj?.method();');
+      expect(resolution.kind).toBe(ResolutionKind.EXTERNAL);
+      expect(resolution.externalName).toBe('obj.method');
+    });
+  });
+
+  describe('resolveCallee — IIFE', () => {
+    test('(function() {})() → IIFE', () => {
+      const { resolution } = firstResolution('(function () { return 1; })();');
+      expect(resolution.kind).toBe(ResolutionKind.IIFE);
+      expect(resolution.functionRecord).toBeDefined();
+      expect(resolution.functionRecord.kind).toBe('expression');
+    });
+
+    test('(() => 1)() → IIFE (arrow)', () => {
+      const { resolution } = firstResolution('(() => 1)();');
+      expect(resolution.kind).toBe(ResolutionKind.IIFE);
+      expect(resolution.functionRecord.kind).toBe('arrow');
+    });
+  });
+
+  describe('resolveCallee — Unresolved', () => {
+    test('arr[i]() → EXTERNAL with computed text', () => {
+      const { resolution } = firstResolution('arr[i]();');
+      expect(resolution.kind).toBe(ResolutionKind.EXTERNAL);
+      // computed property: arr[?] 패턴
+      expect(resolution.externalName).toMatch(/arr\[\?\]/);
+    });
+  });
+
+  describe('extractCallbackArgs', () => {
+    test('arr.map(fn) → 0 callbacks (fn is identifier, not literal)', () => {
+      const ast = parseSource('arr.map(fn);');
+      const functions = new FunctionTable();
+      const callNode = ast.program.body[0].expression;
+      const cbs = extractCallbackArgs(callNode, functions, 'a.js');
+      expect(cbs).toHaveLength(0); // fn 은 Identifier 라 함수 노드가 아님
+    });
+
+    test('arr.map(function(x) { return x; }) → 1 callback', () => {
+      const code = 'arr.map(function (x) { return x; });';
+      const ast = parseSource(code);
+      const functions = new FunctionTable();
+      // function table 구축
+      traverse(ast, {
+        Function: {
+          enter(path) {
+            if (isFunctionNode(path.node)) {
+              functions.add(path.node, path.parent, 'a.js');
+            }
+          },
+        },
+      });
+      const callNode = ast.program.body[0].expression;
+      const cbs = extractCallbackArgs(callNode, functions, 'a.js');
+      expect(cbs).toHaveLength(1);
+      expect(cbs[0].isAnonymous).toBe(true);
+    });
+
+    test('arr.reduce((a, b) => a + b, 0) → 1 callback (arrow)', () => {
+      const code = 'arr.reduce((a, b) => a + b, 0);';
+      const ast = parseSource(code);
+      const functions = new FunctionTable();
+      traverse(ast, {
+        Function: {
+          enter(path) {
+            if (isFunctionNode(path.node)) {
+              functions.add(path.node, path.parent, 'a.js');
+            }
+          },
+        },
+      });
+      const callNode = ast.program.body[0].expression;
+      const cbs = extractCallbackArgs(callNode, functions, 'a.js');
+      expect(cbs).toHaveLength(1);
+      expect(cbs[0].kind).toBe('arrow');
+    });
+
+    test('foo(fn1, function() {}, () => 0) → 2 callbacks (literals only)', () => {
+      const code = 'foo(fn1, function () {}, () => 0);';
+      const ast = parseSource(code);
+      const functions = new FunctionTable();
+      traverse(ast, {
+        Function: {
+          enter(path) {
+            if (isFunctionNode(path.node)) {
+              functions.add(path.node, path.parent, 'a.js');
+            }
+          },
+        },
+      });
+      const callNode = ast.program.body[0].expression;
+      const cbs = extractCallbackArgs(callNode, functions, 'a.js');
+      expect(cbs).toHaveLength(2);
+    });
+  });
+});

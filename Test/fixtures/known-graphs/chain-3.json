@@ -1,0 +1,15 @@
+{
+  "name": "chain-3",
+  "description": "Linear chain A→B→C (rank flows downward, C should be highest)",
+  "nodes": [
+    {"id": "A", "kind": "function", "name": "A"},
+    {"id": "B", "kind": "function", "name": "B"},
+    {"id": "C", "kind": "function", "name": "C"}
+  ],
+  "edges": [
+    {"from": "A", "to": "B", "kind": "direct"},
+    {"from": "B", "to": "C", "kind": "direct"}
+  ],
+  "damping": 0.85,
+  "tolerance": 1e-4
+}
