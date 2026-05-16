@@ -6,9 +6,8 @@ const { buildFromSource, buildCCGFromSource } = require('../../src/graph');
 const { pageRank, weightedPageRank, spearmanRho } = require('../../src/ranking');
 
 function analyzeFiles(filePaths, options = {}) {
-  if (filePaths.length !== 1) {
-    throw new Error('Multi-file analysis not yet supported');
-  }
+  if (filePaths.length === 0) throw new Error('No files provided');
+  if (filePaths.length > 1)   throw new Error('Multi-file analysis not yet supported');
 
   const alpha = options.alpha ?? 0.5;
   const beta = options.beta ?? 10;
@@ -20,6 +19,7 @@ function analyzeFiles(filePaths, options = {}) {
   const cg = buildFromSource(code, filePath);
   const ccg = buildCCGFromSource(code, filePath);
 
+  // CG (no context) is the plain-PageRank baseline; CCG provides control-context edges for weighted ranking.
   const plainRanks = pageRank(cg).ranks;
   const weightedRanks = weightedPageRank(ccg, { weights: { alpha, beta } }).ranks;
   const rho = spearmanRho(plainRanks, weightedRanks);
