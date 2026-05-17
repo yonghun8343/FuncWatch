@@ -22,6 +22,7 @@ const NodeKind = Object.freeze({
   FUNCTION: 'function',
   MODULE: 'module',
   EXTERNAL: 'external',
+  EXTERNAL_MODULE: 'external-module', // node_modules 패키지 단위 노드
 });
 
 const EdgeKind = Object.freeze({
