@@ -53,13 +53,13 @@ describe('Phase 1.1: parser', () => {
     });
   });
 
-  describe('rejects non-ES7 / module syntax', () => {
-    test('rejects ESM import statement', () => {
-      expect(() => parseSource("import x from 'y';")).toThrow();
+  describe('ESM / module syntax (auto-detect)', () => {
+    test('ESM import statement is parsed successfully (auto-detect)', () => {
+      expect(() => parseSource("import x from 'y';")).not.toThrow();
     });
 
-    test('rejects ESM export statement', () => {
-      expect(() => parseSource('export const x = 1;')).toThrow();
+    test('ESM export statement is parsed successfully (auto-detect)', () => {
+      expect(() => parseSource('export const x = 1;')).not.toThrow();
     });
   });
 
@@ -71,5 +71,26 @@ describe('Phase 1.1: parser', () => {
     test('throws on stray operator', () => {
       expect(() => parseSource('const = 1')).toThrow();
     });
+  });
+});
+
+describe('parseSource — ESM auto-detect', () => {
+  test('import 키워드가 있으면 module로 파싱한다', () => {
+    expect(() => parseSource("import { foo } from './utils';")).not.toThrow();
+  });
+
+  test('export 키워드가 있으면 module로 파싱한다', () => {
+    expect(() => parseSource("export function foo() {}")).not.toThrow();
+  });
+
+  test('ESM 없는 코드는 script로 파싱한다', () => {
+    const ast = parseSource('function foo() { return 1; }');
+    expect(ast.type).toBe('File');
+  });
+
+  test('sourceType: "script" 명시 시 ESM 코드는 SyntaxError', () => {
+    expect(() =>
+      parseSource("import { foo } from './utils';", { sourceType: 'script' })
+    ).toThrow();
   });
 });
