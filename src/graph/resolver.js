@@ -13,6 +13,8 @@
 
 'use strict';
 
+const path = require('path');
+const fs = require('fs');
 const { isFunctionNode } = require('../ast/function-table');
 const { makeNodeId } = require('../ast/node-id');
 const { describeCallee } = require('../ast/call-site-table');
@@ -72,21 +74,26 @@ function resolveByBinding(callPath, name, functions, filePath) {
  *   externalName?: string,
  * }}
  */
-function resolveCallee(callPath, functions, filePath) {
+function resolveCallee(callPath, functions, filePath, importTable = null, exportMap = null) {
   const callee = callPath.node && callPath.node.callee;
   if (!callee) return { kind: ResolutionKind.UNRESOLVED };
 
   switch (callee.type) {
     case 'Identifier': {
+      // 1. 같은 파일 scope binding
       const matched = resolveByBinding(callPath, callee.name, functions, filePath);
-      if (matched) {
-        return { kind: ResolutionKind.FUNCTION, functionRecord: matched };
-      }
+      if (matched) return { kind: ResolutionKind.FUNCTION, functionRecord: matched };
+      // 2. cross-file import
+      const crossFile = resolveImportedCallee(callee, importTable, exportMap, filePath);
+      if (crossFile) return crossFile;
       return { kind: ResolutionKind.EXTERNAL, externalName: callee.name };
     }
 
     case 'MemberExpression':
     case 'OptionalMemberExpression': {
+      // namespace import 먼저 시도
+      const crossFile = resolveImportedCallee(callee, importTable, exportMap, filePath);
+      if (crossFile) return crossFile;
       const desc = describeCallee(callee);
       return {
         kind: ResolutionKind.EXTERNAL,
@@ -96,18 +103,14 @@ function resolveCallee(callPath, functions, filePath) {
 
     case 'FunctionExpression':
     case 'ArrowFunctionExpression': {
-      // IIFE — callee 가 함수 literal
       const id = makeNodeId(callee, filePath);
       const rec = functions.get(id);
-      if (rec) {
-        return { kind: ResolutionKind.IIFE, functionRecord: rec };
-      }
+      if (rec) return { kind: ResolutionKind.IIFE, functionRecord: rec };
       return { kind: ResolutionKind.UNRESOLVED };
     }
 
-    case 'Super': {
+    case 'Super':
       return { kind: ResolutionKind.EXTERNAL, externalName: 'super' };
-    }
 
     default:
       return { kind: ResolutionKind.UNRESOLVED };
@@ -136,9 +139,81 @@ function extractCallbackArgs(callNode, functions, filePath) {
   return callbacks;
 }
 
+/**
+ * 상대 import 경로를 절대경로로 해석한다. node_modules면 null.
+ */
+function resolveRelativePath(fromFile, source) {
+  if (!source.startsWith('.')) return null;
+  const base = path.resolve(path.dirname(fromFile), source);
+  return [base, `${base}.js`, `${base}/index.js`]
+    .find((p) => { try { return fs.statSync(p).isFile(); } catch { return false; } }) ?? null;
+}
+
+/**
+ * ImportTable + ExportMap을 이용해 cross-file callee를 해석한다.
+ * node_modules이면 EXTERNAL + packageName을 반환한다.
+ */
+function resolveImportedCallee(callee, importTable, exportMap, filePath) {
+  if (!importTable || !exportMap) return null;
+
+  // --- Identifier 호출: import { foo } from './utils'; foo() ---
+  if (callee.type === 'Identifier') {
+    const imp = importTable.imports.find(
+      (i) => i.localName === callee.name && i.kind !== 'namespace'
+    );
+    if (!imp) return null;
+
+    if (!imp.source.startsWith('.')) {
+      // node_modules
+      return {
+        kind: ResolutionKind.EXTERNAL,
+        externalName: `${imp.source}.${imp.importedName}`,
+        packageName: imp.source,
+      };
+    }
+
+    const sourcePath = resolveRelativePath(filePath, imp.source);
+    if (!sourcePath) return null;
+    const fileExports = exportMap.get(sourcePath);
+    if (!fileExports) return null;
+    const rec = fileExports.get(imp.importedName);
+    return rec ? { kind: ResolutionKind.FUNCTION, functionRecord: rec } : null;
+  }
+
+  // --- MemberExpression 호출: import * as utils; utils.foo() ---
+  if (
+    callee.type === 'MemberExpression' &&
+    callee.object.type === 'Identifier' &&
+    callee.property.type === 'Identifier'
+  ) {
+    const ns = importTable.imports.find(
+      (i) => i.kind === 'namespace' && i.localName === callee.object.name
+    );
+    if (!ns) return null;
+
+    if (!ns.source.startsWith('.')) {
+      return {
+        kind: ResolutionKind.EXTERNAL,
+        externalName: `${ns.source}.${callee.property.name}`,
+        packageName: ns.source,
+      };
+    }
+
+    const sourcePath = resolveRelativePath(filePath, ns.source);
+    if (!sourcePath) return null;
+    const fileExports = exportMap.get(sourcePath);
+    if (!fileExports) return null;
+    const rec = fileExports.get(callee.property.name);
+    return rec ? { kind: ResolutionKind.FUNCTION, functionRecord: rec } : null;
+  }
+
+  return null;
+}
+
 module.exports = {
   ResolutionKind,
   resolveCallee,
   resolveByBinding,
   extractCallbackArgs,
+  resolveImportedCallee,
 };
