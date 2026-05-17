@@ -155,8 +155,120 @@ function buildCallGraph(ast, filePath) {
   return graph;
 }
 
+/**
+ * 여러 파일의 AST + FunctionTable + ImportExportTable을 받아
+ * cross-file 엣지가 포함된 통합 Call Graph를 구축한다.
+ *
+ * @param {Array<{filePath, ast, functionTable, importExportTable}>} files
+ * @param {Map} exportMap  buildExportMap 결과
+ * @returns {Graph}
+ */
+function buildMultiFileCallGraph(files, exportMap) {
+  const graph = new Graph();
+
+  // Pass 1: 모든 파일의 함수 노드 + 모듈 노드 등록
+  for (const { filePath, functionTable } of files) {
+    for (const rec of functionTable.all()) {
+      graph.addNode({ ...rec, kind: NodeKind.FUNCTION, functionKind: rec.kind });
+    }
+    const moduleId = moduleNodeId(filePath);
+    graph.addNode({ id: moduleId, kind: NodeKind.MODULE, file: filePath });
+  }
+
+  function getOrAddExternal(name, packageName = null) {
+    const id = packageName ? `external-fn:${name}` : externalNodeId(name);
+    if (!graph.hasNode(id)) {
+      if (packageName) {
+        const pkgId = `external-module:${packageName}`;
+        if (!graph.hasNode(pkgId)) {
+          graph.addNode({ id: pkgId, kind: NodeKind.EXTERNAL_MODULE, name: packageName });
+        }
+        graph.addNode({ id, kind: NodeKind.EXTERNAL, name, packageName });
+      } else {
+        graph.addNode({ id, kind: NodeKind.EXTERNAL, name });
+      }
+    }
+    return id;
+  }
+
+  // Pass 2: 파일별 AST 순회하여 엣지 추가
+  const SKIP_FLAG = Symbol('funcwatch.skip.multi-cg');
+
+  for (const { filePath, ast, functionTable, importExportTable } of files) {
+    const moduleId = moduleNodeId(filePath);
+    const ctx = new FunctionContext();
+
+    function handleCall(callPath) {
+      const caller = ctx.current();
+      const callerId = caller ? caller.id : moduleId;
+      const isTopLevel = !caller;
+      const callSiteId = makeNodeId(callPath.node, filePath);
+
+      const resolution = resolveCallee(
+        callPath,
+        functionTable,
+        filePath,
+        importExportTable,
+        exportMap
+      );
+
+      let toId;
+      if (
+        resolution.kind === ResolutionKind.FUNCTION ||
+        resolution.kind === ResolutionKind.IIFE
+      ) {
+        toId = resolution.functionRecord.id;
+      } else if (resolution.kind === ResolutionKind.EXTERNAL) {
+        toId = getOrAddExternal(resolution.externalName, resolution.packageName || null);
+      } else {
+        toId = getOrAddExternal(UNRESOLVED_LABEL);
+      }
+
+      graph.addEdge(callerId, toId, {
+        kind: isTopLevel ? EdgeKind.TOP_LEVEL : EdgeKind.DIRECT,
+        callSite: callSiteId,
+        calleeText: resolution.functionRecord
+          ? resolution.functionRecord.name
+          : resolution.externalName || UNRESOLVED_LABEL,
+        resolution: resolution.kind,
+      });
+
+      const callbacks = extractCallbackArgs(callPath.node, functionTable, filePath);
+      for (const cb of callbacks) {
+        graph.addEdge(callerId, cb.id, {
+          kind: EdgeKind.CALLBACK,
+          callSite: callSiteId,
+          calleeText: cb.name || `<anon:${cb.id}>`,
+        });
+      }
+    }
+
+    traverse(ast, {
+      Function: {
+        enter(path) {
+          if (!isFunctionNode(path.node)) {
+            path.node[SKIP_FLAG] = true;
+            return;
+          }
+          const id = makeNodeId(path.node, filePath);
+          ctx.enter(functionTable.get(id));
+        },
+        exit(path) {
+          if (path.node[SKIP_FLAG]) return;
+          ctx.exit();
+        },
+      },
+      CallExpression(path) { handleCall(path); },
+      OptionalCallExpression(path) { handleCall(path); },
+    });
+  }
+
+  return graph;
+}
+
 module.exports = {
   buildCallGraph,
+  buildMultiFileCallGraph,
   externalNodeId,
   moduleNodeId,
   UNRESOLVED_LABEL,
