@@ -28,6 +28,7 @@ const {
   LOOP_TIMER_FUNCTIONS,
   LOOP_TIMER_MEMBER_METHODS,
 } = require('./callee-whitelist');
+const { collectImportsExports } = require('./import-table');
 
 /**
  * 소스 코드 문자열로부터 직접 분석 수행 (편의 함수).
@@ -72,4 +73,7 @@ module.exports = {
   LOOP_ITERATION_METHODS,
   LOOP_TIMER_FUNCTIONS,
   LOOP_TIMER_MEMBER_METHODS,
+
+  // ESM import/export 수집 (Phase 5.5 멀티파일 파이프라인)
+  collectImportsExports,
 };

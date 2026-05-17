@@ -1,19 +1,17 @@
+/**
+ * src/ast/import-table.js
+ *
+ * ESM import / export 선언 수집.
+ *
+ * 책임:
+ *   - 단일 파일 AST에서 ImportDeclaration / ExportNamedDeclaration /
+ *     ExportDefaultDeclaration / ExportAllDeclaration 수집
+ *   - Phase 5.5 멀티파일 파이프라인에서 module-discovery 및 export-map 이 사용
+ */
+
 'use strict';
 
 const traverse = require('@babel/traverse').default;
-
-/**
- * 단일 파일 AST에서 ESM import/export 선언을 수집한다.
- *
- * @param {object} ast  Babel File AST
- * @returns {{ imports: object[], exports: object[] }}
- *
- * import 항목: { localName, importedName, source, kind }
- *   kind: 'named' | 'default' | 'namespace'
- *
- * export 항목: { localName, exportedName, kind, source? }
- *   kind: 'named' | 'default' | 're-export' | 're-export-all'
- */
 function collectImportsExports(ast) {
   const imports = [];
   const exports = [];
@@ -79,7 +77,7 @@ function collectImportsExports(ast) {
 
     ExportAllDeclaration(path) {
       exports.push({
-        localName: '*',
+        localName: null,
         exportedName: '*',
         kind: 're-export-all',
         source: path.node.source.value,
