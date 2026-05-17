@@ -67,10 +67,17 @@ function discoverFiles(entryPath) {
       return;
     }
 
-    const { imports } = collectImportsExports(ast);
+    const { imports, exports } = collectImportsExports(ast);
     for (const imp of imports) {
       const dep = resolvePath(filePath, imp.source);
       if (dep) dfs(dep);
+    }
+    // re-export / re-export-all 도 의존 파일로 추적한다
+    for (const exp of exports) {
+      if (exp.source) {
+        const dep = resolvePath(filePath, exp.source);
+        if (dep) dfs(dep);
+      }
     }
 
     ordered.push(filePath);
