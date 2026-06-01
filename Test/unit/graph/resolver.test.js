@@ -81,12 +81,41 @@ describe('Phase 2.2: resolver', () => {
     });
 
     test('cross-function: a() in b is resolved correctly', () => {
+      // AST traversal 순서 (depth-first, source-order):
+      //   1) function a() {}              ← declaration, no call
+      //   2) function b() { a(); }        ← inner CallExpression a() 가 *첫 번째* call site
+      //   3) b();                          ← top-level (두 번째)
+      // firstResolution() 은 첫 번째 CallExpression 만 반환하므로 → a 가 매칭되어야 한다.
       const { resolution } = firstResolution(
         'function a() {} function b() { a(); } b();'
       );
-      // 첫 번째 call site 는 b() (top-level)
       expect(resolution.kind).toBe(ResolutionKind.FUNCTION);
-      expect(resolution.functionRecord.name).toBe('b');
+      expect(resolution.functionRecord.name).toBe('a');
+    });
+
+    test('cross-function: 두 call site 모두 정확히 매칭 (a in b, top-level b)', () => {
+      // 보강 — call site 별 resolution 을 직접 수집
+      const traverse = require('@babel/traverse').default;
+      const { parseSource } = require('../../../src/ast/parser');
+      const { FunctionTable } = require('../../../src/ast/function-table');
+      const ast = parseSource('function a() {} function b() { a(); } b();');
+      const fns = new FunctionTable();
+      traverse(ast, {
+        Function: {
+          enter(path) {
+            if (isFunctionNode(path.node)) fns.add(path.node, path.parent, 't.js');
+          },
+        },
+      });
+      const resolutions = [];
+      traverse(ast, {
+        CallExpression(path) {
+          resolutions.push(resolveCallee(path, fns, 't.js'));
+        },
+      });
+      expect(resolutions).toHaveLength(2);
+      expect(resolutions[0].functionRecord.name).toBe('a'); // a() inside b
+      expect(resolutions[1].functionRecord.name).toBe('b'); // top-level b()
     });
   });
 
