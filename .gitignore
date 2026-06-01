@@ -238,4 +238,12 @@ docs
 /reports/mutation
 # Mutation eval intermediate
 /eval/work
+# Generated compare reports
+/compare-report.html
+*-compare-report.html
+# Scratch / playground scripts (not part of the package)
+/run.js
+
+# Claude Code local settings (project-level shared settings.json is tracked)
+.claude/settings.local.json
 
