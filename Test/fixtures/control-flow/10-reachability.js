@@ -1,11 +1,14 @@
 // FIXTURE: reachability (block-local unreachable code)
 // REF:     docs/JS_CONTROL_FLOW.md §3.2
 // EXPECT:
-//   - reachableAfterReturn(): helperA in if-block is reachable (IF),
-//                              helperB after return inside if-block is UNREACHABLE
-//   - alwaysThrow(): helperC after throw is UNREACHABLE
-//   - Phase 1: AST가 그대로 보유 (제거되지 않음)
-//   - Phase 4 reachability 적용 후: unreachable 호출은 CCG edge 에서 제외
+//   - reachableAfterReturn():
+//       helperA in if-block       → reachable, IF context
+//       helperB after return       → UNREACHABLE
+//       helperC after if-block     → reachable, **UNCOND** (밖이므로)
+//   - alwaysThrow():
+//       helperD after throw        → UNREACHABLE
+//   - Phase 1: AST 그대로 보유 (제거되지 않음)
+//   - Phase 4 reachability 적용 후: unreachable 호출은 edge.reachable=false 로 마크
 
 function reachableAfterReturn(p) {
   if (p) {
@@ -13,7 +16,7 @@ function reachableAfterReturn(p) {
     return;
     helperB(); // unreachable
   }
-  helperC(); // reachable (alternate; IF context)
+  helperC(); // reachable but UNCOND (if 블록 밖)
 }
 
 function alwaysThrow() {
