@@ -19,7 +19,7 @@ module.exports = {
   graph: require('./graph'),
 
   // Phase 3, 5: ranking
-  // ranking: require('./ranking'),
+  ranking: require('./ranking'),
 
   // Phase 6: diff
   // diff: require('./diff'),

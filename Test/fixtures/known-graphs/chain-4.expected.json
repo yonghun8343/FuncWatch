@@ -1,0 +1,15 @@
+{
+  "name": "chain-4",
+  "damping": 0.85,
+  "tolerance": 0.0001,
+  "iterations": 15,
+  "converged": true,
+  "source": "FuncWatch src/ranking/pagerank.js (Phase 3.1)",
+  "note": "Re-verify via test/reference/networkx/run.py with networkx.pagerank() before publication.",
+  "expectedPageRank": {
+    "A": 0.116164,
+    "B": 0.214899,
+    "C": 0.298791,
+    "D": 0.370146
+  }
+}

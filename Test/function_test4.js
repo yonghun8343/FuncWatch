@@ -12,6 +12,10 @@ function M() {
   M4();
 }
 
+function M1() {
+  return 1;
+}
+
 function M2() {
   return 2;
 }
@@ -20,12 +24,8 @@ function M3() {
   return 3;
 }
 
-function M6() {
-  return 6;
-}
-
-function M7() {
-  return 7;
+function M4() {
+  return 4;
 }
 
 M();
