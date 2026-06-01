@@ -51,10 +51,10 @@ FuncWatch/
 
 ## 범위 제약 (1단계)
 
-- ES7 (ES2016) 수준 JS 만 지원
-- 미지원: ESM, CJS, JSX, TypeScript
-- 단일 파일 또는 module-free 프로젝트만 대상
-- External library 호출은 terminal node 로 처리 (재귀 진입 없음)
+- ES7 (ES2016) + ESM `import`/`export` 지원 (Phase 5.5 — `buildFromEntry`)
+- 미지원: CJS `require`, JSX, TypeScript
+- ESM 진입점에서 import 그래프를 따라가 cross-file CG/CCG 구축
+- External library 호출은 terminal node (또는 `EXTERNAL_MODULE`) 로 처리, 재귀 진입 없음
 
 ## 설치
 
@@ -70,6 +70,7 @@ npm install
 npm test                 # 전체 test
 npm run test:unit        # unit test 만
 npm run test:integration # integration test 만
+npm run test:watch       # 변경 감지하며 반복 실행
 npm run test:coverage    # coverage report
 ```
 
@@ -80,7 +81,7 @@ npm run test:coverage    # coverage report
 node tools/dot-export.js <path-to-js-file>
 
 # 예: fixture 의 anonymous fixture
-node tools/dot-export.js test/fixtures/es7-single-file/05-anonymous.js > out.dot
+node tools/dot-export.js Test/fixtures/es7-single-file/05-anonymous.js > out.dot
 
 # PNG 로 변환 (Graphviz 설치 필요)
 dot -Tpng out.dot -o out.png
@@ -140,7 +141,7 @@ HTML 리포트는 4-panel 그리드로 구성된다:
 node tools/sensitivity.js <path-to-js-file>
 
 # 예: control-context fixture 의 ranking 변동성 확인
-node tools/sensitivity.js test/fixtures/es7-single-file/04-control-context.js
+node tools/sensitivity.js Test/fixtures/es7-single-file/04-control-context.js
 ```
 
 출력:
@@ -150,6 +151,8 @@ node tools/sensitivity.js test/fixtures/es7-single-file/04-control-context.js
 - Extreme corner (α=0.3, β=20 / α=0.7, β=5) 의 ranking 차이
 
 ### 5. 프로그래매틱 사용 (Node.js API)
+
+#### 단일 파일
 
 ```javascript
 const { ast, graph, ranking } = require('./src');
@@ -179,14 +182,37 @@ const customRanks = ranking.weightedPageRank(ccg, {
 const top5 = ranking.toSortedRanking(weightedRanks).slice(0, 5);
 ```
 
+#### ESM 다중 파일 (Phase 5.5)
+
+진입점 JS 파일에서 시작해 `import` 그래프를 따라 의존 파일을 자동 수집하고,
+cross-file 엣지를 포함한 통합 CG/CCG 를 한 번에 구축한다.
+
+```javascript
+const { graph, ranking } = require('./src');
+
+// (1) 진입점 → 의존 파일 자동 탐색 → 통합 CG + CCG
+const { cg, ccg, files, sources } = graph.buildFromEntry('./src/app/main.js');
+
+//   files   : 발견된 모든 파일 경로 (entry 포함, DFS 순서)
+//   sources : Map<filePath, sourceCode> — 보고서 렌더링 등에 활용
+
+// (2) 통합 그래프 위에서 ranking
+const { ranks: plain }    = ranking.pageRank(cg);
+const { ranks: weighted } = ranking.weightedPageRank(ccg);
+
+const top10 = ranking.toSortedRanking(weighted).slice(0, 10);
+```
+
+`node_modules` 모듈은 코드 본문을 추적하지 않고 `EXTERNAL_MODULE` 노드로 통합된다.
+
 ### 6. networkx 결과와 cross-check (publication 시 권장)
 
 ```bash
 pip install networkx
-python3 test/reference/networkx/run.py
+python3 Test/reference/networkx/run.py
 ```
 
-자세한 사용법은 [`test/reference/networkx/README.md`](test/reference/networkx/README.md) 참조.
+자세한 사용법은 [`Test/reference/networkx/README.md`](Test/reference/networkx/README.md) 참조.
 
 ## 주요 개념
 
