@@ -1,20 +1,28 @@
 /**
  * src/ranking/weighted-pagerank.js
  *
- * CCG-Weighted PageRank — edge weight 를 반영한 power iteration.
+ * Edge-weighted PageRank — power iteration with per-edge weights.
  *
- * 정식화 (Xing & Ghorbani 2004):
+ * 정식화 (networkx `nx.pagerank(G, weight='weight')` 와 동치):
  *
  *   PR(v) = (1-d)/N + d * ( sum_{u in B(v)} w(e_{u→v}) * PR(u) / W_out(u)
  *                           + danglingSum / N )
  *
- *   w(e)      : edgeWeight(edge, weights)    — Phase 5.1
+ *   w(e)      : edgeWeight(edge, weights)    — Phase 5.1, edge-weight.js
  *   W_out(u)  : sum of edge weights out of u (rankable destinations)
  *   dangling  : W_out(u) === 0 인 노드 (out-edge 없거나 모두 unreachable)
+ *
+ * Note on naming: 이 알고리즘은 Xing & Ghorbani 2004 의 "Weighted PageRank"
+ * (link 의 in-popularity × out-popularity 로 weight 를 *유도* 하는 알고리즘)
+ * 와 다르다. 여기서는 weight 가 *외부에서 주어지는* (CCG control context 로부터
+ * 계산된) standard edge-weighted PageRank — Brin & Page 1998 의 자연스러운
+ * 가중치 확장이며 networkx 의 기본 weighted PR 과 일치한다.
  *
  * Phase 3 plain pageRank() 와의 일관성:
  *   - 모든 edge weight 가 1.0 이고 reachable=true 면 결과는 plain PR 과 동치
  *   - 본 모듈의 unit test 에서 명시적 검증
+ *
+ * 자세한 알고리즘 설명: src/ranking/README.md §2 참조.
  */
 
 'use strict';
