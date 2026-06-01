@@ -21,6 +21,18 @@ const {
   spearmanRho,
 } = require('./baselines');
 
+const {
+  weightedPageRank,
+  DEFAULT_OPTIONS: WEIGHTED_DEFAULT_OPTIONS,
+} = require('./weighted-pagerank');
+
+const {
+  edgeWeight,
+  mergeWeights,
+  totalOutWeight,
+  DEFAULT_WEIGHTS,
+} = require('./edge-weight');
+
 module.exports = {
   // Phase 3
   pageRank,
@@ -33,4 +45,12 @@ module.exports = {
   weightedInDegree,
   locScore,
   spearmanRho,
+
+  // Phase 5 — Weighted PageRank
+  weightedPageRank,
+  WEIGHTED_PAGERANK_DEFAULT_OPTIONS: WEIGHTED_DEFAULT_OPTIONS,
+  edgeWeight,
+  mergeWeights,
+  totalOutWeight,
+  EDGE_WEIGHT_DEFAULTS: DEFAULT_WEIGHTS,
 };
