@@ -75,7 +75,7 @@ const top5 = ranking.toSortedRanking(wRanks).slice(0, 5);
 
 ## Scope & constraints
 
-- **ES7 single-file only** — no ESM imports, CJS `require`, JSX, or TypeScript
+- **ES7 + ESM module syntax** — ESM `import` / `export` are supported via Phase 5.5 (`buildFromEntry`). CJS `require`, JSX, TypeScript are still out of scope.
 - PageRank results are validated against a Python networkx baseline (`Test/reference/networkx/`) within ε-tolerance
 - Fixture files under `Test/fixtures/` are locked per phase — do not modify expected outputs once a phase is complete
-- Phase 5.5+ (multi-file/module support, PR diff integration, Stryker mutation testing, evaluation) is out of scope for the current publication target
+- Phase 6 (PR diff integration) was removed from scope. Phase 7 (Stryker mutation testing) and Phase 8 (empirical evaluation) remain out of scope for the current publication target.

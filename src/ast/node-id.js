@@ -51,7 +51,7 @@ function makeNodeId(node, filePath) {
 }
 
 /**
- * 노드 metadata (debug, PR diff 매핑용) 추출.
+ * 노드 metadata (debug 식별용) 추출.
  *
  * @param {object} node     Babel AST node
  * @param {string} filePath 소스 파일 경로

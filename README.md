@@ -1,36 +1,28 @@
 # FuncWatch
 
-Call-graph-based change impact analysis for JavaScript PR review.
+Call-graph-based latent change impact ranking for JavaScript.
 
 ## 연구 개요
 
-PR(pull request) 시점에 변경된 함수의 *latent impact* 를 정량화하여
-리뷰어에게 risk-ranked 알림을 제공한다.
+JavaScript 소스 코드를 정적 분석해 각 함수의 *latent change impact* 를
+정량화한다.
 
 핵심 메트릭: **CCG-weighted PageRank** — Badri (2005) 의 Control Call Graph
 위에 control context 별 가중치를 부여한 PageRank.
-
-자세한 연구 plan 은 [`docs/PLAN.md`](docs/PLAN.md) 참조.
 
 ## 디렉토리 구조
 
 ```
 FuncWatch/
-├── docs/                   설계 문서
-│   ├── PLAN.md             연구 plan (phase, venue, threats to validity)
-│   ├── JS_FUNCTION_TYPES.md  함수 종류 spec
-│   └── JS_CONTROL_FLOW.md  제어 흐름 spec
 ├── src/                    구현
-│   ├── ast/                Phase 1: AST 분석 (parser, function table, call site, visitor)
-│   ├── graph/              Phase 2, 4: CG / CCG
+│   ├── ast/                Phase 1: AST 분석 (parser, function table, call site, visitor, import-table)
+│   ├── graph/              Phase 2, 4: CG / CCG (ccg/ 서브디렉토리에 context + builder)
 │   │   └── ccg/            CCG context + builder
-│   ├── ranking/            Phase 3, 5: PageRank / Weighted PageRank
-│   ├── diff/               Phase 6: PR diff (2단계 예정)
-│   └── cli/                Phase 6: CLI (2단계 예정)
+│   └── ranking/            Phase 3, 5: PageRank / Weighted PageRank / edge-weight
 ├── test/                   unit/integration test + fixtures
 │   ├── unit/               단위 test
 │   ├── integration/        통합 test
-│   ├── fixtures/           ES7 / known-graphs / function-types / control-flow
+│   ├── fixtures/           ES7 / known-graphs / function-types / control-flow / esm
 │   └── reference/networkx/ networkx PageRank reference
 ├── tools/                  개발 도구
 │   ├── dot-export.js       CG 를 Graphviz DOT 로 출력
@@ -51,8 +43,7 @@ FuncWatch/
 - [x] Phase 3: CG-PageRank
 - [x] Phase 4: Control Call Graph (CCG) 구축
 - [x] Phase 5: CCG-Weighted PageRank
-- [ ] Phase 5.5: Module 지원 (ESM / CJS) — 2단계
-- [ ] Phase 6: PR diff & risk ranking — 2단계
+- [x] Phase 5.5: ESM 다중 파일 지원
 - [ ] Phase 7: Stryker mutation testing 통합 — 2단계
 - [ ] Phase 8: Empirical evaluation — 2단계
 

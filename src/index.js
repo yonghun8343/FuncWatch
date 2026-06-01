@@ -21,8 +21,5 @@ module.exports = {
   // Phase 3, 5: ranking
   ranking: require('./ranking'),
 
-  // Phase 6: diff
-  // diff: require('./diff'),
-
   version: '0.1.0',
 };
