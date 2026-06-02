@@ -250,3 +250,67 @@ describe('Phase 2.2: resolver', () => {
     });
   });
 });
+
+describe('CJS cross-file resolution via buildFromEntry', () => {
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+  const { buildFromEntry } = require('../../../src/graph');
+  const { NodeKind } = require('../../../src/graph/base');
+
+  function tmpDir() { return fs.mkdtempSync(path.join(os.tmpdir(), 'fw-cjs-')); }
+  function write(dir, name, code) {
+    const fp = path.join(dir, name);
+    fs.writeFileSync(fp, code);
+    return fp;
+  }
+  function edge(cg, fromName, toName) {
+    const fns = cg.nodesByKind(NodeKind.FUNCTION);
+    const from = fns.find(n => n.name === fromName);
+    const to   = fns.find(n => n.name === toName);
+    if (!from || !to) return false;
+    return cg.edges().some(e => e.from === from.id && e.to === to.id);
+  }
+
+  let dir;
+  afterEach(() => { if (dir) { fs.rmSync(dir, { recursive: true }); dir = null; } });
+
+  test('cjs-namespace: utils.add() → compute→add 엣지', () => {
+    dir = tmpDir();
+    write(dir, 'utils.js', 'function add(a, b) { return a + b; }\nmodule.exports = { add };');
+    const main = write(dir, 'main.js',
+      "const utils = require('./utils');\nfunction compute() { return utils.add(1, 2); }");
+    const { cg } = buildFromEntry(main);
+    expect(edge(cg, 'compute', 'add')).toBe(true);
+  });
+
+  test('cjs-named: const { add } = require(...) → run→add 엣지', () => {
+    dir = tmpDir();
+    write(dir, 'math.js', 'function add(a, b) { return a + b; }\nmodule.exports = { add };');
+    const main = write(dir, 'main.js',
+      "const { add } = require('./math');\nfunction run() { return add(1, 2); }");
+    const { cg } = buildFromEntry(main);
+    expect(edge(cg, 'run', 'add')).toBe(true);
+  });
+
+  test('property-access: const add = require(...).add → calc→add 엣지', () => {
+    dir = tmpDir();
+    write(dir, 'math.js', 'function add(a, b) { return a + b; }\nmodule.exports = { add };');
+    const main = write(dir, 'main.js',
+      "const add = require('./math').add;\nfunction calc() { return add(1, 2); }");
+    const { cg } = buildFromEntry(main);
+    expect(edge(cg, 'calc', 'add')).toBe(true);
+  });
+
+  test('alias chain: const x = utils; x.transform() → process→transform 엣지', () => {
+    dir = tmpDir();
+    write(dir, 'utils.js', 'function transform(x) { return x * 2; }\nmodule.exports = { transform };');
+    const main = write(dir, 'main.js', [
+      "const utils = require('./utils');",
+      'const myUtils = utils;',
+      'function process(v) { return myUtils.transform(v); }',
+    ].join('\n'));
+    const { cg } = buildFromEntry(main);
+    expect(edge(cg, 'process', 'transform')).toBe(true);
+  });
+});

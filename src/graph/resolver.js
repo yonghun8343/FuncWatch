@@ -19,6 +19,9 @@ const { isFunctionNode } = require('../ast/function-table');
 const { makeNodeId } = require('../ast/node-id');
 const { describeCallee } = require('../ast/call-site-table');
 
+const NON_NS_IMPORT_KINDS = new Set(['named', 'default', 'cjs-named']);
+const NS_IMPORT_KINDS     = new Set(['namespace', 'cjs-namespace']);
+
 const ResolutionKind = Object.freeze({
   FUNCTION: 'function',
   EXTERNAL: 'external',
@@ -84,7 +87,7 @@ function resolveCallee(callPath, functions, filePath, importTable = null, export
       const matched = resolveByBinding(callPath, callee.name, functions, filePath);
       if (matched) return { kind: ResolutionKind.FUNCTION, functionRecord: matched };
       // 2. cross-file import
-      const crossFile = resolveImportedCallee(callee, importTable, exportMap, filePath);
+      const crossFile = resolveImportedCallee(callee, importTable, exportMap, filePath, callPath);
       if (crossFile) return crossFile;
       return { kind: ResolutionKind.EXTERNAL, externalName: callee.name };
     }
@@ -92,7 +95,7 @@ function resolveCallee(callPath, functions, filePath, importTable = null, export
     case 'MemberExpression':
     case 'OptionalMemberExpression': {
       // namespace import 먼저 시도
-      const crossFile = resolveImportedCallee(callee, importTable, exportMap, filePath);
+      const crossFile = resolveImportedCallee(callee, importTable, exportMap, filePath, callPath);
       if (crossFile) return crossFile;
       const desc = describeCallee(callee);
       return {
@@ -153,14 +156,30 @@ function resolveRelativePath(fromFile, source) {
  * ImportTable + ExportMap을 이용해 cross-file callee를 해석한다.
  * node_modules이면 EXTERNAL + packageName을 반환한다.
  */
-function resolveImportedCallee(callee, importTable, exportMap, filePath) {
+function resolveImportedCallee(callee, importTable, exportMap, filePath, callPath = null, depth = 0) {
   if (!importTable || !exportMap) return null;
 
   // --- Identifier 호출: import { foo } from './utils'; foo() ---
   if (callee.type === 'Identifier') {
-    const imp = importTable.imports.find(
-      (i) => i.localName === callee.name && i.kind !== 'namespace'
+    let imp = importTable.imports.find(
+      (i) => i.localName === callee.name && NON_NS_IMPORT_KINDS.has(i.kind)
     );
+
+    if (!imp && callPath && depth < 3) {
+      const binding = callPath.scope.getBinding(callee.name);
+      if (binding) {
+        const bindNode = binding.path.node;
+        if (
+          bindNode.type === 'VariableDeclarator' &&
+          bindNode.init &&
+          bindNode.init.type === 'Identifier'
+        ) {
+          const aliasedCallee = { ...callee, name: bindNode.init.name };
+          return resolveImportedCallee(aliasedCallee, importTable, exportMap, filePath, callPath, depth + 1);
+        }
+      }
+    }
+
     if (!imp) return null;
 
     if (!imp.source.startsWith('.')) {
@@ -186,9 +205,26 @@ function resolveImportedCallee(callee, importTable, exportMap, filePath) {
     callee.object.type === 'Identifier' &&
     callee.property.type === 'Identifier'
   ) {
-    const ns = importTable.imports.find(
-      (i) => i.kind === 'namespace' && i.localName === callee.object.name
+    let ns = importTable.imports.find(
+      (i) => NS_IMPORT_KINDS.has(i.kind) && i.localName === callee.object.name
     );
+
+    if (!ns && callPath && depth < 3) {
+      const binding = callPath.scope.getBinding(callee.object.name);
+      if (binding) {
+        const bindNode = binding.path.node;
+        if (
+          bindNode.type === 'VariableDeclarator' &&
+          bindNode.init &&
+          bindNode.init.type === 'Identifier'
+        ) {
+          ns = importTable.imports.find(
+            (i) => NS_IMPORT_KINDS.has(i.kind) && i.localName === bindNode.init.name
+          );
+        }
+      }
+    }
+
     if (!ns) return null;
 
     if (!ns.source.startsWith('.')) {
