@@ -1,0 +1,38 @@
+{
+  "name": "wikipedia-11",
+  "description": "11-node example based on the Wikipedia PageRank illustration. Edges reproduce the directed structure with B and E having multiple incoming, used to test mid-size convergence and ordering.",
+  "nodes": [
+    {"id": "A", "kind": "function", "name": "A"},
+    {"id": "B", "kind": "function", "name": "B"},
+    {"id": "C", "kind": "function", "name": "C"},
+    {"id": "D", "kind": "function", "name": "D"},
+    {"id": "E", "kind": "function", "name": "E"},
+    {"id": "F", "kind": "function", "name": "F"},
+    {"id": "G", "kind": "function", "name": "G"},
+    {"id": "H", "kind": "function", "name": "H"},
+    {"id": "I", "kind": "function", "name": "I"},
+    {"id": "J", "kind": "function", "name": "J"},
+    {"id": "K", "kind": "function", "name": "K"}
+  ],
+  "edges": [
+    {"from": "D", "to": "A", "kind": "direct"},
+    {"from": "D", "to": "B", "kind": "direct"},
+    {"from": "E", "to": "B", "kind": "direct"},
+    {"from": "E", "to": "D", "kind": "direct"},
+    {"from": "E", "to": "F", "kind": "direct"},
+    {"from": "F", "to": "B", "kind": "direct"},
+    {"from": "F", "to": "E", "kind": "direct"},
+    {"from": "G", "to": "B", "kind": "direct"},
+    {"from": "G", "to": "E", "kind": "direct"},
+    {"from": "H", "to": "B", "kind": "direct"},
+    {"from": "H", "to": "E", "kind": "direct"},
+    {"from": "I", "to": "B", "kind": "direct"},
+    {"from": "I", "to": "E", "kind": "direct"},
+    {"from": "J", "to": "E", "kind": "direct"},
+    {"from": "K", "to": "E", "kind": "direct"},
+    {"from": "C", "to": "B", "kind": "direct"},
+    {"from": "B", "to": "C", "kind": "direct"}
+  ],
+  "damping": 0.85,
+  "tolerance": 1e-4
+}

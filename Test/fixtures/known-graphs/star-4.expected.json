@@ -1,0 +1,16 @@
+{
+  "name": "star-4",
+  "damping": 0.85,
+  "tolerance": 0.0001,
+  "iterations": 26,
+  "converged": true,
+  "source": "FuncWatch src/ranking/pagerank.js (Phase 3.1)",
+  "note": "Re-verify via test/reference/networkx/run.py with networkx.pagerank() before publication.",
+  "expectedPageRank": {
+    "hub": 0.523795,
+    "p1": 0.119051,
+    "p2": 0.119051,
+    "p3": 0.119051,
+    "p4": 0.119051
+  }
+}

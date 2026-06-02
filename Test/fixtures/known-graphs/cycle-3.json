@@ -1,0 +1,16 @@
+{
+  "name": "cycle-3",
+  "description": "Cycle A→B→C→A — all nodes have equal rank by symmetry",
+  "nodes": [
+    {"id": "A", "kind": "function", "name": "A"},
+    {"id": "B", "kind": "function", "name": "B"},
+    {"id": "C", "kind": "function", "name": "C"}
+  ],
+  "edges": [
+    {"from": "A", "to": "B", "kind": "direct"},
+    {"from": "B", "to": "C", "kind": "direct"},
+    {"from": "C", "to": "A", "kind": "direct"}
+  ],
+  "damping": 0.85,
+  "tolerance": 1e-4
+}

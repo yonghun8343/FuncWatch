@@ -1,0 +1,22 @@
+{
+  "name": "wikipedia-11",
+  "damping": 0.85,
+  "tolerance": 0.0001,
+  "iterations": 52,
+  "converged": true,
+  "source": "FuncWatch src/ranking/pagerank.js (Phase 3.1)",
+  "note": "Re-verify via test/reference/networkx/run.py with networkx.pagerank() before publication.",
+  "expectedPageRank": {
+    "A": 0.032781,
+    "B": 0.384378,
+    "C": 0.342933,
+    "D": 0.039087,
+    "E": 0.080886,
+    "F": 0.039087,
+    "G": 0.016169,
+    "H": 0.016169,
+    "I": 0.016169,
+    "J": 0.016169,
+    "K": 0.016169
+  }
+}

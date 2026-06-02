@@ -1,0 +1,14 @@
+{
+  "name": "self-loop",
+  "description": "Recursion: caller → callee + callee → callee (self-loop). Self-loop should boost callee's PR.",
+  "nodes": [
+    {"id": "caller", "kind": "function", "name": "caller"},
+    {"id": "callee", "kind": "function", "name": "callee"}
+  ],
+  "edges": [
+    {"from": "caller", "to": "callee", "kind": "direct"},
+    {"from": "callee", "to": "callee", "kind": "direct"}
+  ],
+  "damping": 0.85,
+  "tolerance": 1e-4
+}

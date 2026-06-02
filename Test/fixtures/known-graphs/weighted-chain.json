@@ -1,0 +1,16 @@
+{
+  "name": "weighted-chain",
+  "description": "3-node chain A → B → C, but with B→C in LOOP context. Edge weight = α^ifDepth * β^loopDepth (default α=0.5, β=10).",
+  "nodes": [
+    {"id": "A", "kind": "function", "name": "A"},
+    {"id": "B", "kind": "function", "name": "B"},
+    {"id": "C", "kind": "function", "name": "C"}
+  ],
+  "edges": [
+    {"from": "A", "to": "B", "kind": "direct", "context": {"ifDepth": 0, "loopDepth": 0}, "contextKind": "uncond", "reachable": true, "weight": 1.0},
+    {"from": "B", "to": "C", "kind": "direct", "context": {"ifDepth": 0, "loopDepth": 1}, "contextKind": "loop", "reachable": true, "weight": 10.0}
+  ],
+  "damping": 0.85,
+  "tolerance": 1e-4,
+  "weights": {"alpha": 0.5, "beta": 10}
+}

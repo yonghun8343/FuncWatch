@@ -1,0 +1,16 @@
+{
+  "name": "weighted-unreachable",
+  "description": "Caller has one reachable edge (LOOP) and one unreachable edge. Unreachable should contribute weight 0 (effectively excluded).",
+  "nodes": [
+    {"id": "caller", "kind": "function", "name": "caller"},
+    {"id": "reached", "kind": "function", "name": "reached"},
+    {"id": "unreached", "kind": "function", "name": "unreached"}
+  ],
+  "edges": [
+    {"from": "caller", "to": "reached", "kind": "direct", "context": {"ifDepth": 0, "loopDepth": 1}, "contextKind": "loop", "reachable": true, "weight": 10.0},
+    {"from": "caller", "to": "unreached", "kind": "direct", "context": {"ifDepth": 0, "loopDepth": 0}, "contextKind": "uncond", "reachable": false, "weight": 0.0}
+  ],
+  "damping": 0.85,
+  "tolerance": 1e-4,
+  "weights": {"alpha": 0.5, "beta": 10}
+}

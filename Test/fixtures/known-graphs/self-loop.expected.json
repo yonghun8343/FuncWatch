@@ -1,0 +1,13 @@
+{
+  "name": "self-loop",
+  "damping": 0.85,
+  "tolerance": 0.0001,
+  "iterations": 2,
+  "converged": true,
+  "source": "FuncWatch src/ranking/pagerank.js (Phase 3.1)",
+  "note": "Re-verify via test/reference/networkx/run.py with networkx.pagerank() before publication.",
+  "expectedPageRank": {
+    "caller": 0.075,
+    "callee": 0.925
+  }
+}
