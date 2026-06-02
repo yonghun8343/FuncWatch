@@ -15,6 +15,17 @@
 
 const traverse = require('@babel/traverse').default;
 
+function isRequireCall(node) {
+  return (
+    node != null &&
+    node.type === 'CallExpression' &&
+    node.callee.type === 'Identifier' &&
+    node.callee.name === 'require' &&
+    node.arguments.length === 1 &&
+    node.arguments[0].type === 'StringLiteral'
+  );
+}
+
 function collectModuleInfo(ast) {
   const imports = [];
   const exports = [];
@@ -85,6 +96,54 @@ function collectModuleInfo(ast) {
         kind: 're-export-all',
         source: path.node.source.value,
       });
+    },
+
+    VariableDeclaration(path) {
+      for (const decl of path.node.declarations) {
+        if (!decl.init) continue;
+
+        // Pattern 1: const utils = require('./y')
+        if (isRequireCall(decl.init) && decl.id.type === 'Identifier') {
+          imports.push({
+            localName: decl.id.name,
+            importedName: '*',
+            source: decl.init.arguments[0].value,
+            kind: 'cjs-namespace',
+          });
+          continue;
+        }
+
+        // Pattern 2: const { a, b } = require('./y')
+        if (isRequireCall(decl.init) && decl.id.type === 'ObjectPattern') {
+          const source = decl.init.arguments[0].value;
+          for (const prop of decl.id.properties) {
+            if (prop.type === 'ObjectProperty' && prop.key.type === 'Identifier') {
+              imports.push({
+                localName: prop.value.name || prop.key.name,
+                importedName: prop.key.name,
+                source,
+                kind: 'cjs-named',
+              });
+            }
+          }
+          continue;
+        }
+
+        // Pattern 3: const a = require('./y').a
+        if (
+          decl.init.type === 'MemberExpression' &&
+          isRequireCall(decl.init.object) &&
+          decl.id.type === 'Identifier' &&
+          decl.init.property.type === 'Identifier'
+        ) {
+          imports.push({
+            localName: decl.id.name,
+            importedName: decl.init.property.name,
+            source: decl.init.object.arguments[0].value,
+            kind: 'cjs-named',
+          });
+        }
+      }
     },
   });
 

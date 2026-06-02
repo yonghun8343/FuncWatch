@@ -61,3 +61,45 @@ describe('collectModuleInfo — ESM', () => {
     expect(result.exports).toHaveLength(0);
   });
 });
+
+describe('collectModuleInfo — CJS require', () => {
+  test('namespace: const utils = require("./y")', () => {
+    const { imports } = collect("const utils = require('./utils');");
+    expect(imports).toHaveLength(1);
+    expect(imports[0]).toMatchObject({
+      localName: 'utils', importedName: '*', source: './utils', kind: 'cjs-namespace',
+    });
+  });
+
+  test('destructured: const { add, multiply } = require("./y")', () => {
+    const { imports } = collect("const { add, multiply } = require('./math');");
+    expect(imports).toHaveLength(2);
+    expect(imports[0]).toMatchObject({ localName: 'add', importedName: 'add', source: './math', kind: 'cjs-named' });
+    expect(imports[1]).toMatchObject({ localName: 'multiply', importedName: 'multiply', source: './math', kind: 'cjs-named' });
+  });
+
+  test('property-access: const add = require("./y").add', () => {
+    const { imports } = collect("const add = require('./math').add;");
+    expect(imports[0]).toMatchObject({
+      localName: 'add', importedName: 'add', source: './math', kind: 'cjs-named',
+    });
+  });
+
+  test('node_modules require → source 그대로 수집', () => {
+    const { imports } = collect("const _ = require('lodash');");
+    expect(imports[0]).toMatchObject({ localName: '_', importedName: '*', source: 'lodash', kind: 'cjs-namespace' });
+  });
+
+  test('동적 require (비문자열 인자) → 무시', () => {
+    const { imports } = collect('const x = require(getPath());');
+    expect(imports).toHaveLength(0);
+  });
+
+  test('ESM import + CJS require 혼용 파일', () => {
+    const code = "import { foo } from './a';\nconst bar = require('./b');";
+    const { imports } = collect(code);
+    expect(imports).toHaveLength(2);
+    expect(imports[0]).toMatchObject({ kind: 'named', source: './a' });
+    expect(imports[1]).toMatchObject({ kind: 'cjs-namespace', source: './b' });
+  });
+});
