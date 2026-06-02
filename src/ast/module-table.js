@@ -117,7 +117,7 @@ function collectModuleInfo(ast) {
         if (isRequireCall(decl.init) && decl.id.type === 'ObjectPattern') {
           const source = decl.init.arguments[0].value;
           for (const prop of decl.id.properties) {
-            if (prop.type === 'ObjectProperty' && prop.key.type === 'Identifier') {
+            if (prop.type === 'ObjectProperty' && prop.key.type === 'Identifier' && !prop.computed) {
               imports.push({
                 localName: prop.value.name || prop.key.name,
                 importedName: prop.key.name,
@@ -132,6 +132,7 @@ function collectModuleInfo(ast) {
         // Pattern 3: const a = require('./y').a
         if (
           decl.init.type === 'MemberExpression' &&
+          !decl.init.computed &&
           isRequireCall(decl.init.object) &&
           decl.id.type === 'Identifier' &&
           decl.init.property.type === 'Identifier'

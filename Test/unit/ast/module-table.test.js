@@ -102,4 +102,14 @@ describe('collectModuleInfo — CJS require', () => {
     expect(imports[0]).toMatchObject({ kind: 'named', source: './a' });
     expect(imports[1]).toMatchObject({ kind: 'cjs-namespace', source: './b' });
   });
+
+  test('computed-key destructured require → 무시', () => {
+    const { imports } = collect("const { [key]: x } = require('./y');");
+    expect(imports).toHaveLength(0);
+  });
+
+  test('computed bracket-access require → 무시', () => {
+    const { imports } = collect("const x = require('./y')[key];");
+    expect(imports).toHaveLength(0);
+  });
 });
