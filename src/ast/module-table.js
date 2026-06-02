@@ -1,18 +1,21 @@
 /**
- * src/ast/import-table.js
+ * src/ast/module-table.js
  *
- * ESM import / export 선언 수집.
+ * ESM + CJS import/export 수집. collectModuleInfo(ast) 하나를 export한다.
  *
- * 책임:
- *   - 단일 파일 AST에서 ImportDeclaration / ExportNamedDeclaration /
- *     ExportDefaultDeclaration / ExportAllDeclaration 수집
- *   - Phase 5.5 멀티파일 파이프라인에서 module-discovery 및 export-map 이 사용
+ * imports: [{ localName, importedName, source, kind }]
+ *   kind: 'named'|'default'|'namespace'        (ESM)
+ *         'cjs-named'|'cjs-namespace'           (CJS — Task 2에서 추가)
+ * exports: [{ localName, exportedName, kind, source? }]
+ *   kind: 'named'|'default'|'re-export'|'re-export-all'  (ESM)
+ *         'cjs-named'|'cjs-default'                       (CJS — Task 3에서 추가)
  */
 
 'use strict';
 
 const traverse = require('@babel/traverse').default;
-function collectImportsExports(ast) {
+
+function collectModuleInfo(ast) {
   const imports = [];
   const exports = [];
 
@@ -88,4 +91,4 @@ function collectImportsExports(ast) {
   return { imports, exports };
 }
 
-module.exports = { collectImportsExports };
+module.exports = { collectModuleInfo };

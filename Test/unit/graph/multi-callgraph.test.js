@@ -7,7 +7,7 @@ const { buildMultiFileCallGraph } = require('../../../src/graph/callgraph');
 const { buildExportMap } = require('../../../src/graph/export-map');
 const { discoverFiles } = require('../../../src/graph/module-discovery');
 const { parseSource } = require('../../../src/ast/parser');
-const { collectImportsExports } = require('../../../src/ast/import-table');
+const { collectModuleInfo } = require('../../../src/ast/module-table');
 const { FunctionTable, isFunctionNode } = require('../../../src/ast/function-table');
 const { NodeKind } = require('../../../src/graph/base');
 
@@ -17,7 +17,7 @@ function loadFiles(entryPath) {
   return discoverFiles(entryPath).map((filePath) => {
     const code = fs.readFileSync(filePath, 'utf-8');
     const ast = parseSource(code);
-    const importExportTable = collectImportsExports(ast);
+    const importExportTable = collectModuleInfo(ast);
     const functionTable = new FunctionTable();
     traverse(ast, {
       Function: {

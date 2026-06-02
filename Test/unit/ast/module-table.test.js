@@ -1,13 +1,13 @@
 'use strict';
 
-const { collectImportsExports } = require('../../../src/ast/import-table');
+const { collectModuleInfo } = require('../../../src/ast/module-table');
 const { parseSource } = require('../../../src/ast/parser');
 
 function collect(code) {
-  return collectImportsExports(parseSource(code));
+  return collectModuleInfo(parseSource(code));
 }
 
-describe('collectImportsExports', () => {
+describe('collectModuleInfo — ESM', () => {
   test('named import', () => {
     const { imports } = collect("import { foo, bar } from './utils';");
     expect(imports).toHaveLength(2);
@@ -36,12 +36,12 @@ describe('collectImportsExports', () => {
   });
 
   test('named export (function declaration)', () => {
-    const { exports } = collect("export function add(a, b) { return a + b; }");
+    const { exports } = collect('export function add(a, b) { return a + b; }');
     expect(exports[0]).toMatchObject({ exportedName: 'add', kind: 'named' });
   });
 
   test('default export', () => {
-    const { exports } = collect("export default function log() {}");
+    const { exports } = collect('export default function log() {}');
     expect(exports[0]).toMatchObject({ exportedName: 'default', kind: 'default' });
   });
 

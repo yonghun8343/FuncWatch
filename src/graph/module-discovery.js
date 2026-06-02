@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const { parseSource } = require('../ast/parser');
-const { collectImportsExports } = require('../ast/import-table');
+const { collectModuleInfo } = require('../ast/module-table');
 
 /**
  * fromFile에서 source로의 상대경로를 절대경로로 해석한다.
@@ -67,7 +67,7 @@ function discoverFiles(entryPath) {
       return;
     }
 
-    const { imports, exports } = collectImportsExports(ast);
+    const { imports, exports } = collectModuleInfo(ast);
     for (const imp of imports) {
       const dep = resolvePath(filePath, imp.source);
       if (dep) dfs(dep);

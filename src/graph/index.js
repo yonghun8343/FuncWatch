@@ -26,7 +26,7 @@ const {
 
 const { parseSource } = require('../ast/parser');
 const { FunctionTable, isFunctionNode } = require('../ast/function-table');
-const { collectImportsExports } = require('../ast/import-table');
+const { collectModuleInfo } = require('../ast/module-table');
 const { discoverFiles } = require('./module-discovery');
 const { buildExportMap } = require('./export-map');
 const { annotateContext } = require('./ccg/builder');
@@ -60,7 +60,7 @@ function buildFromEntry(entryPath) {
     const code = fs.readFileSync(filePath, 'utf-8');
     sources.set(filePath, code);
     const ast = parseSource(code);
-    const importExportTable = collectImportsExports(ast);
+    const importExportTable = collectModuleInfo(ast);
     const functionTable = new FunctionTable();
     traverse(ast, {
       Function: {
