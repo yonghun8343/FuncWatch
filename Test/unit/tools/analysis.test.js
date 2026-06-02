@@ -39,4 +39,12 @@ describe('analyzeFiles', () => {
   test('멀티파일 입력은 에러를 던진다', () => {
     expect(() => analyzeFiles([FIXTURE, FIXTURE])).toThrow('Pass a single entry point');
   });
+
+  test('CJS 진입점도 buildFromEntry로 라우팅된다', () => {
+    const fixturePath = path.resolve(__dirname,
+      '../../fixtures/cjs/01-basic-namespace/main.js');
+    const result = analyzeFiles([fixturePath]);
+    // CJS 파일이라도 multi-file 파이프라인을 통해 두 파일을 수집해야 한다
+    expect(result.files.length).toBeGreaterThanOrEqual(2);
+  });
 });
