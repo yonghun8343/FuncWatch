@@ -9,6 +9,8 @@
 
 const { resolvePath } = require('./module-discovery');
 
+const DIRECT_EXPORT_KINDS = new Set(['named', 'default', 'cjs-named', 'cjs-default']);
+
 /**
  * @param {Array<{filePath, functionTable, importExportTable}>} files
  * @returns {Map<string, Map<string, object>>}
@@ -40,9 +42,9 @@ function buildExportMap(files) {
 
     const { functionTable, importExportTable } = fileData;
 
-    // 직접 named/default export
+    // 직접 named/default export (ESM + CJS)
     const direct = importExportTable.exports.find(
-      (e) => e.exportedName === exportedName && (e.kind === 'named' || e.kind === 'default')
+      (e) => e.exportedName === exportedName && DIRECT_EXPORT_KINDS.has(e.kind)
     );
     if (direct) return findFnByName(functionTable, direct.localName);
 

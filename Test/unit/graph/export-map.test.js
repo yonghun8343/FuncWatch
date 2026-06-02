@@ -55,4 +55,45 @@ describe('buildExportMap', () => {
     const files = loadFiles(path.join(FIXTURES, '05-circular/a.js'));
     expect(() => buildExportMap(files)).not.toThrow();
   });
+
+  describe('CJS exports', () => {
+    function makeCJSFile(filePath, code) {
+      const ast = parseSource(code);
+      const importExportTable = collectModuleInfo(ast);
+      const functionTable = new FunctionTable();
+      traverse(ast, {
+        Function: {
+          enter(p) { if (isFunctionNode(p.node)) functionTable.add(p.node, p.parent, filePath); },
+        },
+      });
+      return { filePath, ast, functionTable, importExportTable };
+    }
+
+    test('module.exports = { add } → add FunctionRecord로 해소', () => {
+      const code = 'function add(a, b) { return a + b; }\nmodule.exports = { add };';
+      const file = makeCJSFile('/proj/math.js', code);
+      const exportMap = buildExportMap([file]);
+      const rec = exportMap.get('/proj/math.js').get('add');
+      expect(rec).toBeDefined();
+      expect(rec.name).toBe('add');
+    });
+
+    test('exports.format = format → format FunctionRecord로 해소', () => {
+      const code = 'function format(s) { return s.trim(); }\nexports.format = format;';
+      const file = makeCJSFile('/proj/utils.js', code);
+      const exportMap = buildExportMap([file]);
+      const rec = exportMap.get('/proj/utils.js').get('format');
+      expect(rec).toBeDefined();
+      expect(rec.name).toBe('format');
+    });
+
+    test('module.exports = function foo() {} → "default" 키로 해소', () => {
+      const code = 'module.exports = function foo() {};';
+      const file = makeCJSFile('/proj/fn.js', code);
+      const exportMap = buildExportMap([file]);
+      const rec = exportMap.get('/proj/fn.js').get('default');
+      expect(rec).toBeDefined();
+      expect(rec.name).toBe('foo');
+    });
+  });
 });
