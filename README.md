@@ -15,7 +15,7 @@ JavaScript 소스 코드를 정적 분석해 각 함수의 *latent change impact
 ```
 FuncWatch/
 ├── src/                    구현
-│   ├── ast/                Phase 1: AST 분석 (parser, function table, call site, visitor, import-table)
+│   ├── ast/                Phase 1: AST 분석 (parser, function table, call site, visitor, module-table)
 │   ├── graph/              Phase 2, 4: CG / CCG (ccg/ 서브디렉토리에 context + builder)
 │   │   └── ccg/            CCG context + builder
 │   └── ranking/            Phase 3, 5: PageRank / Weighted PageRank / edge-weight

@@ -1,7 +1,7 @@
 /**
  * src/ast/module-table.js
  *
- * ESM + CJS import/export 수집. collectModuleInfo(ast) 하나를 export한다.
+ * ESM import/export 수집 (CJS는 Task 2–3에서 추가 예정). collectModuleInfo(ast) 하나를 export한다.
  *
  * imports: [{ localName, importedName, source, kind }]
  *   kind: 'named'|'default'|'namespace'        (ESM)

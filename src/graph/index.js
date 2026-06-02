@@ -60,7 +60,7 @@ function buildFromEntry(entryPath) {
     const code = fs.readFileSync(filePath, 'utf-8');
     sources.set(filePath, code);
     const ast = parseSource(code);
-    const importExportTable = collectModuleInfo(ast);
+    const moduleInfo = collectModuleInfo(ast);
     const functionTable = new FunctionTable();
     traverse(ast, {
       Function: {
@@ -69,7 +69,7 @@ function buildFromEntry(entryPath) {
         },
       },
     });
-    return { filePath, code, ast, functionTable, importExportTable };
+    return { filePath, code, ast, functionTable, importExportTable: moduleInfo };
   });
 
   const exportMap = buildExportMap(files);

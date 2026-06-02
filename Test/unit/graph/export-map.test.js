@@ -15,7 +15,7 @@ function loadFiles(entryPath) {
   return discoverFiles(entryPath).map((filePath) => {
     const code = fs.readFileSync(filePath, 'utf-8');
     const ast = parseSource(code);
-    const importExportTable = collectModuleInfo(ast);
+    const moduleInfo = collectModuleInfo(ast);
     const functionTable = new FunctionTable();
     traverse(ast, {
       Function: {
@@ -24,7 +24,7 @@ function loadFiles(entryPath) {
         },
       },
     });
-    return { filePath, ast, functionTable, importExportTable };
+    return { filePath, ast, functionTable, importExportTable: moduleInfo };
   });
 }
 

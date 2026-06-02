@@ -17,14 +17,14 @@ function loadFiles(entryPath) {
   return discoverFiles(entryPath).map((filePath) => {
     const code = fs.readFileSync(filePath, 'utf-8');
     const ast = parseSource(code);
-    const importExportTable = collectModuleInfo(ast);
+    const moduleInfo = collectModuleInfo(ast);
     const functionTable = new FunctionTable();
     traverse(ast, {
       Function: {
         enter(p) { if (isFunctionNode(p.node)) functionTable.add(p.node, p.parent, filePath); },
       },
     });
-    return { filePath, code, ast, functionTable, importExportTable };
+    return { filePath, code, ast, functionTable, importExportTable: moduleInfo };
   });
 }
 
