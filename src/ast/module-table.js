@@ -15,6 +15,16 @@
 
 const traverse = require('@babel/traverse').default;
 
+function isModuleExports(node) {
+  return (
+    node.type === 'MemberExpression' &&
+    node.object.type === 'Identifier' &&
+    node.object.name === 'module' &&
+    node.property.type === 'Identifier' &&
+    node.property.name === 'exports'
+  );
+}
+
 function isRequireCall(node) {
   return (
     node != null &&
@@ -144,6 +154,47 @@ function collectModuleInfo(ast) {
             kind: 'cjs-named',
           });
         }
+      }
+    },
+
+    AssignmentExpression(path) {
+      const { left, right } = path.node;
+
+      // module.exports = { a, b }
+      if (isModuleExports(left) && right.type === 'ObjectExpression') {
+        for (const prop of right.properties) {
+          if (prop.type === 'ObjectProperty' && prop.key.type === 'Identifier' && !prop.computed) {
+            exports.push({
+              localName: prop.value.type === 'Identifier' ? prop.value.name : null,
+              exportedName: prop.key.name,
+              kind: 'cjs-named',
+            });
+          }
+        }
+        return;
+      }
+
+      // module.exports = fn  or  module.exports = Identifier
+      if (isModuleExports(left)) {
+        const localName = right.id
+          ? right.id.name
+          : right.type === 'Identifier'
+          ? right.name
+          : null;
+        exports.push({ localName, exportedName: 'default', kind: 'cjs-default' });
+        return;
+      }
+
+      // exports.foo = fn  or  exports.foo = Identifier
+      if (
+        left.type === 'MemberExpression' &&
+        !left.computed &&
+        left.object.type === 'Identifier' &&
+        left.object.name === 'exports' &&
+        left.property.type === 'Identifier'
+      ) {
+        const localName = right.type === 'Identifier' ? right.name : null;
+        exports.push({ localName, exportedName: left.property.name, kind: 'cjs-named' });
       }
     },
   });

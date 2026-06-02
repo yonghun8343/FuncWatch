@@ -113,3 +113,36 @@ describe('collectModuleInfo — CJS require', () => {
     expect(imports).toHaveLength(0);
   });
 });
+
+describe('collectModuleInfo — CJS exports', () => {
+  test('module.exports = { add, multiply } → cjs-named 두 개', () => {
+    const { exports } = collect('function add() {}\nfunction multiply() {}\nmodule.exports = { add, multiply };');
+    expect(exports.find(e => e.exportedName === 'add')).toMatchObject({ localName: 'add', kind: 'cjs-named' });
+    expect(exports.find(e => e.exportedName === 'multiply')).toMatchObject({ localName: 'multiply', kind: 'cjs-named' });
+  });
+
+  test('module.exports = function foo() {} → cjs-default', () => {
+    const { exports } = collect('module.exports = function foo() {};');
+    expect(exports[0]).toMatchObject({ localName: 'foo', exportedName: 'default', kind: 'cjs-default' });
+  });
+
+  test('module.exports = bar (Identifier) → cjs-default with localName', () => {
+    const { exports } = collect('function bar() {}\nmodule.exports = bar;');
+    expect(exports[0]).toMatchObject({ localName: 'bar', exportedName: 'default', kind: 'cjs-default' });
+  });
+
+  test('exports.add = function() {} → cjs-named, localName null', () => {
+    const { exports } = collect('exports.add = function() {};');
+    expect(exports[0]).toMatchObject({ localName: null, exportedName: 'add', kind: 'cjs-named' });
+  });
+
+  test('exports.add = add → cjs-named with localName', () => {
+    const { exports } = collect('function add() {}\nexports.add = add;');
+    expect(exports[0]).toMatchObject({ localName: 'add', exportedName: 'add', kind: 'cjs-named' });
+  });
+
+  test('module.exports 없는 파일 → exports 비어있음', () => {
+    const { exports } = collect('function foo() {}');
+    expect(exports).toHaveLength(0);
+  });
+});
