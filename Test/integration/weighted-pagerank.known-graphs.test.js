@@ -1,5 +1,5 @@
 /**
- * Phase 5 integration test — known-graphs weighted reference
+ * Integration test — known-graphs weighted reference
  *
  * test/fixtures/known-graphs/weighted-*.json 의 graph 를 로드하여
  * weightedPageRank 결과가 weighted-*.expected.weighted.json 와 ε 안에서 일치하는지.
@@ -38,7 +38,7 @@ const FIXTURES = [
   'weighted-unreachable',
 ];
 
-describe('Phase 5: known-graphs weighted reference', () => {
+describe('known-graphs weighted reference', () => {
   describe.each(FIXTURES)('%s', (name) => {
     let spec;
     let expectedJson;

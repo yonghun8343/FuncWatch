@@ -1,5 +1,5 @@
 /**
- * Phase 3 integration test — known-graphs reference
+ * Integration test — known-graphs reference
  *
  * test/fixtures/known-graphs/<name>.json 의 graph 를 로드하여
  * pageRank 결과가 <name>.expected.json 의 expectedPageRank 와 ε 안에서 일치하는지.
@@ -34,7 +34,7 @@ const FIXTURES = [
   'self-loop',
 ];
 
-describe('Phase 3: known-graphs reference', () => {
+describe('known-graphs reference', () => {
   describe.each(FIXTURES)('%s', (name) => {
     let spec;
     let expectedJson;

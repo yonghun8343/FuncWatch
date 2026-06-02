@@ -1,7 +1,7 @@
 /**
- * Phase 3 integration test — es7-single-file fixture 에 대한 PR 동작 검증
+ * Integration test — es7-single-file fixture 에 대한 PR 동작 검증
  *
- * Phase 1 (AST) → Phase 2 (CG) → Phase 3 (PR) 전체 파이프라인을 fixture 5개에 적용.
+ * AST → CG → PR 전체 파이프라인을 fixture 5개에 적용.
  * Expected ranking property (예: util 이 가장 높음, leaf 가 source 보다 높음) 검증.
  */
 
@@ -27,7 +27,7 @@ function rankOf(graph, ranks, name) {
   return node ? ranks.get(node.id) : undefined;
 }
 
-describe('Phase 3: PR on es7-single-file fixtures', () => {
+describe('PR on es7-single-file fixtures', () => {
   describe('01-trivial-chain.js (main → a → b → c)', () => {
     test('rank flows downward: c > b > a > main', () => {
       const { graph, ranks } = loadAndRank('01-trivial-chain.js');
@@ -83,7 +83,7 @@ describe('Phase 3: PR on es7-single-file fixtures', () => {
   });
 
   describe('04-control-context.js (main → 5 helpers)', () => {
-    test('5 helper 의 PR 은 모두 거의 동일 (Phase 3 시점 — context 무관)', () => {
+    test('5 helper 의 PR 은 모두 거의 동일 (plain PR — context 무관)', () => {
       const { graph, ranks } = loadAndRank('04-control-context.js');
       const helpers = [
         'uncondCall',
@@ -92,11 +92,11 @@ describe('Phase 3: PR on es7-single-file fixtures', () => {
         'loopCall',
         'nestedCall',
       ].map((n) => rankOf(graph, ranks, n));
-      // Phase 3 plain PR 은 IF/LOOP 구분 없음 → 모두 동등
+      // plain PR 은 IF/LOOP 구분 없음 → 모두 동등
       for (const h of helpers) {
         expect(h).toBeCloseTo(helpers[0], 6);
       }
-      // Phase 5 에서 weight 도입 시 차등이 생겨야 함 (별도 test)
+      // weighted PR 에서 weight 도입 시 차등이 생겨야 함 (별도 test)
     });
   });
 

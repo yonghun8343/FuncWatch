@@ -1,5 +1,5 @@
 /**
- * Phase 2: CallGraph integration test
+ * CallGraph integration test
  *
  * test/fixtures/es7-single-file/ 의 5개 fixture 에 대해 expected 한 CG 를 검증.
  * 각 fixture 의 상단 주석에 명시한 노드/엣지 형태와 일치하는지.
@@ -38,7 +38,7 @@ function edgesByKind(graph, kind) {
   return graph.edges().filter((e) => e.kind === kind);
 }
 
-describe('Phase 2: CallGraph fixtures', () => {
+describe('CallGraph fixtures', () => {
   describe('01-trivial-chain.js', () => {
     test('5 nodes: main, a, b, c, module', () => {
       const { graph } = loadAndBuild('01-trivial-chain.js');
@@ -141,7 +141,7 @@ describe('Phase 2: CallGraph fixtures', () => {
         'nestedCall',
         'uncondCall',
       ]);
-      // Phase 2 시점에는 모두 DIRECT (context 부여는 Phase 4)
+      // all DIRECT at callgraph level (context annotation is CCG's job)
       expect(
         graph.outEdges(main.id).every((e) => e.kind === EdgeKind.DIRECT)
       ).toBe(true);

@@ -6,7 +6,7 @@ const { NodeKind } = require('../../src/graph/base');
 
 const FIXTURES = path.resolve(__dirname, '../fixtures/esm');
 
-describe('Phase 5.5: ESM 멀티파일 분석', () => {
+describe('ESM multi-file analysis', () => {
   test('named import → CG에 cross-file 직접 엣지 존재', () => {
     const result = analyzeFiles([path.join(FIXTURES, '01-basic-named/main.js')]);
     const fns = result.cg.nodesByKind(NodeKind.FUNCTION);

@@ -1,5 +1,5 @@
 /**
- * Phase 4 integration: control-flow fixture compliance test
+ * Control-flow fixture compliance test
  *
  * test/fixtures/control-flow/ 의 16 fixture 에 대해 CCG 결과가
  * docs/JS_CONTROL_FLOW.md 의 정책과 일치하는지 검증.
@@ -9,7 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { buildCCGFromSource } = require('../../src/graph/ccg');
+const { buildCCGFromSource } = require('../../src/graph');
 const { NodeKind, EdgeKind } = require('../../src/graph');
 
 const FIXTURE_DIR = path.resolve(__dirname, '..', 'fixtures', 'control-flow');
@@ -31,7 +31,7 @@ function ctxKindsTo(g, calleeName) {
   return edgeToCallee(g, calleeName).map((e) => e.contextKind);
 }
 
-describe('Phase 4: control-flow fixture CCG compliance', () => {
+describe('control-flow fixture CCG compliance', () => {
   describe('01-if-else', () => {
     test('a, b, c 모두 IF context', () => {
       const g = loadGraph('01-if-else.js');

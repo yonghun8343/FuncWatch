@@ -1,5 +1,5 @@
 /**
- * Phase 5 integration test — plain CG-PR vs CCG-weighted PR 비교
+ * Integration test — plain CG-PR vs CCG-weighted PR 비교
  *
  * es7-single-file 및 control-flow fixture 에 대해
  * plain 과 weighted 의 ranking 차이가 docs/PLAN.md §1 가설과 일치하는지 검증.
@@ -32,7 +32,7 @@ function rankOf(graph, ranks, name) {
   return n ? ranks.get(n.id) : undefined;
 }
 
-describe('Phase 5: plain vs weighted PR comparison', () => {
+describe('plain vs weighted PR comparison', () => {
   describe('01-trivial-chain.js (모든 호출 UNCOND)', () => {
     test('plain 과 weighted 결과 동일 (모든 edge UNCOND 라 weight=1)', () => {
       const g = loadGraph(FIX_E7, '01-trivial-chain.js');

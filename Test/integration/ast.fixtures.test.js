@@ -1,5 +1,5 @@
 /**
- * Phase 1: fixture 기반 integration test
+ * Fixture-based integration test
  *
  * test/fixtures/es7-single-file/ 의 각 fixture를 분석하여
  * function/call site 수집 결과가 기대치와 일치하는지 검증.
@@ -26,7 +26,7 @@ function analyzeFixture(name) {
   return analyzeSource(code, filePath);
 }
 
-describe('Phase 1 integration: fixture analysis', () => {
+describe('AST integration: fixture analysis', () => {
   describe('01-trivial-chain.js', () => {
     test('captures 4 functions: main, a, b, c', () => {
       const { functions } = analyzeFixture('01-trivial-chain.js');
@@ -120,7 +120,7 @@ describe('Phase 1 integration: fixture analysis', () => {
       ]);
     });
 
-    test('main calls all 5 helpers (Phase 4에서 context 별도 검증)', () => {
+    test('main calls all 5 helpers (context verified separately)', () => {
       const { functions, calls } = analyzeFixture('04-control-context.js');
       const main = functions.all().find((r) => r.name === 'main');
       const fromMain = calls.byCaller(main.id);
