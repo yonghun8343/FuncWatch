@@ -6,7 +6,6 @@
 
 'use strict';
 
-const fs = require('fs');
 const traverse = require('@babel/traverse').default;
 
 const { Graph, NodeKind, EdgeKind } = require('./base');
@@ -26,8 +25,7 @@ const {
 
 const { parseSource } = require('../ast/parser');
 const { FunctionTable, isFunctionNode } = require('../ast/function-table');
-const { collectModuleInfo } = require('../ast/module-table');
-const { discoverFiles } = require('./module-discovery');
+const { loadProject } = require('./module-discovery');
 const { buildExportMap } = require('./export-map');
 const { annotateContext } = require('./ccg/builder');
 
@@ -53,14 +51,13 @@ function buildFromSource(code, filePath = '<anonymous>') {
  * @returns {{ cg: Graph, ccg: Graph, files: string[], sources: Map<string, string> }}
  */
 function buildFromEntry(entryPath) {
-  const filePaths = discoverFiles(entryPath);
+  const parsedFiles = loadProject(entryPath);
   const sources = new Map();
+  const filePaths = [];
 
-  const files = filePaths.map((filePath) => {
-    const code = fs.readFileSync(filePath, 'utf-8');
+  const files = parsedFiles.map(({ filePath, code, ast, moduleInfo }) => {
     sources.set(filePath, code);
-    const ast = parseSource(code);
-    const moduleInfo = collectModuleInfo(ast);
+    filePaths.push(filePath);
     const functionTable = new FunctionTable();
     traverse(ast, {
       Function: {
@@ -74,10 +71,8 @@ function buildFromEntry(entryPath) {
 
   const exportMap = buildExportMap(files);
 
-  // CG: cross-file 엣지 포함 통합 그래프
   const cg = buildMultiFileCallGraph(files, exportMap);
 
-  // CCG: CG와 동일한 구조에 파일별 제어 컨텍스트 어노테이션 추가
   const ccgGraph = buildMultiFileCallGraph(files, exportMap);
   for (const { ast, filePath } of files) {
     annotateContext(ast, ccgGraph, filePath);

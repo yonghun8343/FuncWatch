@@ -1,14 +1,18 @@
 /**
  * src/graph/module-discovery.js
  *
- * 진입점 파일에서 시작해 ESM import를 따라 DFS로 의존 파일 목록을 수집한다.
+ * 진입점 파일에서 시작해 의존 파일을 DFS로 수집하고,
+ * 각 파일의 (code, ast, moduleInfo)까지 함께 반환한다.
+ *
+ * 같은 파일을 다운스트림(buildFromEntry)에서 다시 읽고 파싱하는
+ * 중복을 제거하기 위한 단일 진입점이다.
  */
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const { parseSource } = require('../ast/parser');
+const parser = require('../ast/parser');
 const { collectModuleInfo } = require('../ast/module-table');
 
 /**
@@ -17,8 +21,8 @@ const { collectModuleInfo } = require('../ast/module-table');
  *
  * 해석 순서: base → base.js → base/index.js
  *
- * @param {string} fromFile  현재 파일 절대경로
- * @param {string} source    import source 문자열
+ * @param {string} fromFile
+ * @param {string} source
  * @returns {string|null}
  */
 function resolvePath(fromFile, source) {
@@ -36,12 +40,20 @@ function resolvePath(fromFile, source) {
 }
 
 /**
- * 진입점에서 DFS로 import를 따라 의존 파일 목록을 수집한다.
+ * 진입점에서 DFS로 import/require/re-export를 따라가며
+ * 각 파일의 ParsedFile을 수집한다.
  *
- * @param {string} entryPath  진입점 파일 경로
- * @returns {string[]}        post-order 정렬된 파일 경로 목록 (의존 파일이 의존자보다 앞)
+ * @typedef {{
+ *   filePath: string,
+ *   code: string,
+ *   ast: object,
+ *   moduleInfo: { imports: Array, exports: Array },
+ * }} ParsedFile
+ *
+ * @param {string} entryPath
+ * @returns {ParsedFile[]} post-order(의존 파일이 앞)
  */
-function discoverFiles(entryPath) {
+function loadProject(entryPath) {
   const resolved = path.resolve(entryPath);
   const visited = new Set();
   const ordered = [];
@@ -60,31 +72,30 @@ function discoverFiles(entryPath) {
 
     let ast;
     try {
-      ast = parseSource(code);
-    } catch {
-      process.stderr.write(`[module-discovery] Cannot parse: ${filePath}\n`);
-      ordered.push(filePath);
+      ast = parser.parseSource(code);
+    } catch (e) {
+      process.stderr.write(`[module-discovery] Cannot parse ${filePath}: ${e.message}\n`);
       return;
     }
 
-    const { imports, exports } = collectModuleInfo(ast);
-    for (const imp of imports) {
+    const moduleInfo = collectModuleInfo(ast);
+
+    for (const imp of moduleInfo.imports) {
       const dep = resolvePath(filePath, imp.source);
       if (dep) dfs(dep);
     }
-    // re-export / re-export-all 도 의존 파일로 추적한다
-    for (const exp of exports) {
+    for (const exp of moduleInfo.exports) {
       if (exp.source) {
         const dep = resolvePath(filePath, exp.source);
         if (dep) dfs(dep);
       }
     }
 
-    ordered.push(filePath);
+    ordered.push({ filePath, code, ast, moduleInfo });
   }
 
   dfs(resolved);
   return ordered;
 }
 
-module.exports = { discoverFiles, resolvePath };
+module.exports = { loadProject, resolvePath };

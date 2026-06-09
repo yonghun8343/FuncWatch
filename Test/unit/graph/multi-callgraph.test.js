@@ -1,27 +1,24 @@
 'use strict';
 
 const path = require('path');
-const fs = require('fs');
 const traverse = require('@babel/traverse').default;
 const { buildMultiFileCallGraph } = require('../../../src/graph/callgraph');
 const { buildExportMap } = require('../../../src/graph/export-map');
-const { discoverFiles } = require('../../../src/graph/module-discovery');
+const { loadProject } = require('../../../src/graph/module-discovery');
 const { parseSource } = require('../../../src/ast/parser');
-const { collectModuleInfo } = require('../../../src/ast/module-table');
 const { FunctionTable, isFunctionNode } = require('../../../src/ast/function-table');
 const { NodeKind } = require('../../../src/graph/base');
 
 const FIXTURES = path.resolve(__dirname, '../../fixtures/esm');
 
 function loadFiles(entryPath) {
-  return discoverFiles(entryPath).map((filePath) => {
-    const code = fs.readFileSync(filePath, 'utf-8');
-    const ast = parseSource(code);
-    const moduleInfo = collectModuleInfo(ast);
+  return loadProject(entryPath).map(({ filePath, code, ast, moduleInfo }) => {
     const functionTable = new FunctionTable();
     traverse(ast, {
       Function: {
-        enter(p) { if (isFunctionNode(p.node)) functionTable.add(p.node, p.parent, filePath); },
+        enter(nodePath) {
+          if (isFunctionNode(nodePath.node)) functionTable.add(nodePath.node, nodePath.parent, filePath);
+        },
       },
     });
     return { filePath, code, ast, functionTable, importExportTable: moduleInfo };
