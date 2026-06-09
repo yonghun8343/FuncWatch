@@ -96,24 +96,6 @@ describe('loadProject', () => {
     stderrWrite.mockRestore();
   });
 
-  test('동일 파일은 한 번만 파싱된다 (캐싱 검증)', () => {
-    const utils = write(dir, 'utils.js', 'export function foo() {}');
-    const entry = write(
-      dir,
-      'main.js',
-      "import { foo } from './utils'; export function main() { foo(); }"
-    );
-    const parser = require('../../../src/ast/parser');
-    const spy = jest.spyOn(parser, 'parseSource');
-    try {
-      const files = loadProject(entry);
-      expect(files).toHaveLength(2);
-      // utils.js + main.js 각각 1회씩, 총 2회
-      expect(spy).toHaveBeenCalledTimes(2);
-    } finally {
-      spy.mockRestore();
-    }
-  });
 });
 
 describe('resolvePath', () => {

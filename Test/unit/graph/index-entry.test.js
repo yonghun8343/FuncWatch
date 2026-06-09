@@ -1,8 +1,16 @@
 'use strict';
 
+jest.mock('../../../src/ast/parser', () => {
+  const actual = jest.requireActual('../../../src/ast/parser');
+  return { ...actual, parseSource: jest.fn(actual.parseSource) };
+});
+
+const os = require('os');
+const fs = require('fs');
 const path = require('path');
 const { buildFromEntry, buildFromSource } = require('../../../src/graph');
 const { NodeKind } = require('../../../src/graph/base');
+const { parseSource } = require('../../../src/ast/parser');
 
 const FIXTURES = path.resolve(__dirname, '../../fixtures/esm');
 
@@ -32,5 +40,34 @@ describe('buildFromEntry', () => {
     const g = buildFromSource('function foo() { return 1; }', 'test.js');
     expect(g).toBeDefined();
     expect(g.nodesByKind(NodeKind.FUNCTION)).toHaveLength(1);
+  });
+});
+
+describe('buildFromEntry — AST caching', () => {
+  let dir;
+  beforeEach(() => {
+    parseSource.mockClear();
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fw-cache-'));
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('각 파일은 buildFromEntry 전체 파이프라인에서 정확히 한 번만 파싱된다', () => {
+    const writeFile = (name, content) => {
+      const p = path.join(dir, name);
+      fs.writeFileSync(p, content, 'utf-8');
+      return p;
+    };
+    const utils = writeFile('utils.js', 'export function foo() {}');
+    const entry = writeFile(
+      'main.js',
+      "import { foo } from './utils';\nexport function main() { foo(); }"
+    );
+
+    buildFromEntry(entry);
+
+    // 2 files × 1 parse = exactly 2 parseSource calls (pre-refactor would have been 4)
+    expect(parseSource).toHaveBeenCalledTimes(2);
   });
 });

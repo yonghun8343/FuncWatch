@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const parser = require('../ast/parser');
+const { parseSource } = require('../ast/parser');
 const { collectModuleInfo } = require('../ast/module-table');
 
 /**
@@ -72,7 +72,7 @@ function loadProject(entryPath) {
 
     let ast;
     try {
-      ast = parser.parseSource(code);
+      ast = parseSource(code);
     } catch (e) {
       process.stderr.write(`[module-discovery] Cannot parse ${filePath}: ${e.message}\n`);
       return;
