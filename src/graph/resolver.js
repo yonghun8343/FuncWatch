@@ -153,10 +153,38 @@ function resolveRelativePath(fromFile, source) {
 }
 
 /**
+ * `const a = b; const b = c; const c = utils`처럼 Identifier→Identifier 형태의 alias 체인을
+ * Babel scope binding으로 추적해 거쳐가는 모든 이름을 반환한다.
+ * 깊이 제한은 없고, 이미 본 이름을 다시 만나면 종료한다(cycle 보호).
+ */
+function followAliasChain(callPath, startName) {
+  const chain = [startName];
+  if (!callPath) return chain;
+  const visited = new Set([startName]);
+  let current = startName;
+  while (true) {
+    const binding = callPath.scope.getBinding(current);
+    if (!binding) break;
+    const bindNode = binding.path.node;
+    if (
+      bindNode.type !== 'VariableDeclarator' ||
+      !bindNode.init ||
+      bindNode.init.type !== 'Identifier'
+    ) break;
+    const next = bindNode.init.name;
+    if (visited.has(next)) break;
+    visited.add(next);
+    chain.push(next);
+    current = next;
+  }
+  return chain;
+}
+
+/**
  * ImportTable + ExportMap을 이용해 cross-file callee를 해석한다.
  * node_modules이면 EXTERNAL + packageName을 반환한다.
  */
-function resolveImportedCallee(callee, importTable, exportMap, filePath, callPath = null, depth = 0) {
+function resolveImportedCallee(callee, importTable, exportMap, filePath, callPath = null) {
   if (!importTable || !exportMap) return null;
 
   // --- Identifier 호출: import { foo } from './utils'; foo() ---
@@ -165,18 +193,12 @@ function resolveImportedCallee(callee, importTable, exportMap, filePath, callPat
       (i) => i.localName === callee.name && NON_NS_IMPORT_KINDS.has(i.kind)
     );
 
-    if (!imp && callPath && depth < 3) {
-      const binding = callPath.scope.getBinding(callee.name);
-      if (binding) {
-        const bindNode = binding.path.node;
-        if (
-          bindNode.type === 'VariableDeclarator' &&
-          bindNode.init &&
-          bindNode.init.type === 'Identifier'
-        ) {
-          const aliasedCallee = { ...callee, name: bindNode.init.name };
-          return resolveImportedCallee(aliasedCallee, importTable, exportMap, filePath, callPath, depth + 1);
-        }
+    if (!imp && callPath) {
+      const chain = followAliasChain(callPath, callee.name);
+      for (let i = 1; i < chain.length && !imp; i++) {
+        imp = importTable.imports.find(
+          (im) => im.localName === chain[i] && NON_NS_IMPORT_KINDS.has(im.kind)
+        );
       }
     }
 
@@ -209,19 +231,12 @@ function resolveImportedCallee(callee, importTable, exportMap, filePath, callPat
       (i) => NS_IMPORT_KINDS.has(i.kind) && i.localName === callee.object.name
     );
 
-    if (!ns && callPath && depth < 3) {
-      const binding = callPath.scope.getBinding(callee.object.name);
-      if (binding) {
-        const bindNode = binding.path.node;
-        if (
-          bindNode.type === 'VariableDeclarator' &&
-          bindNode.init &&
-          bindNode.init.type === 'Identifier'
-        ) {
-          ns = importTable.imports.find(
-            (i) => NS_IMPORT_KINDS.has(i.kind) && i.localName === bindNode.init.name
-          );
-        }
+    if (!ns && callPath) {
+      const chain = followAliasChain(callPath, callee.object.name);
+      for (let i = 1; i < chain.length && !ns; i++) {
+        ns = importTable.imports.find(
+          (im) => NS_IMPORT_KINDS.has(im.kind) && im.localName === chain[i]
+        );
       }
     }
 

@@ -313,4 +313,36 @@ describe('CJS cross-file resolution via buildFromEntry', () => {
     const { cg } = buildFromEntry(main);
     expect(edge(cg, 'process', 'transform')).toBe(true);
   });
+
+  test('deep alias chain (namespace, 5단계): e.transform() → run→transform 엣지', () => {
+    dir = tmpDir();
+    write(dir, 'utils.js', 'function transform(x) { return x * 2; }\nmodule.exports = { transform };');
+    const main = write(dir, 'main.js', [
+      "const utils = require('./utils');",
+      'const a = utils;',
+      'const b = a;',
+      'const c = b;',
+      'const d = c;',
+      'const e = d;',
+      'function run(v) { return e.transform(v); }',
+    ].join('\n'));
+    const { cg } = buildFromEntry(main);
+    expect(edge(cg, 'run', 'transform')).toBe(true);
+  });
+
+  test('deep alias chain (named, 5단계): e() → run→add 엣지', () => {
+    dir = tmpDir();
+    write(dir, 'math.js', 'function add(a, b) { return a + b; }\nmodule.exports = { add };');
+    const main = write(dir, 'main.js', [
+      "const { add } = require('./math');",
+      'const a = add;',
+      'const b = a;',
+      'const c = b;',
+      'const d = c;',
+      'const e = d;',
+      'function run() { return e(1, 2); }',
+    ].join('\n'));
+    const { cg } = buildFromEntry(main);
+    expect(edge(cg, 'run', 'add')).toBe(true);
+  });
 });
