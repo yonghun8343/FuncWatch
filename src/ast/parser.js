@@ -33,7 +33,12 @@ function parseSource(code, { sourceType = 'auto' } = {}) {
 
   return parser.parse(code, {
     sourceType: type,
-    plugins: [],
+    plugins: [
+      'optionalChaining',
+      'nullishCoalescingOperator',
+      'classProperties',
+      'dynamicImport',
+    ],
     ranges: false,
     tokens: false,
   });

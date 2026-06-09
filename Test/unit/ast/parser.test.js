@@ -94,3 +94,29 @@ describe('parseSource — ESM auto-detect', () => {
     ).toThrow();
   });
 });
+
+describe('parseSource — ES2020+ syntax', () => {
+  test('Optional Chaining (?.)을 SyntaxError 없이 파싱한다', () => {
+    expect(() => parseSource('const x = a?.b?.c;')).not.toThrow();
+  });
+
+  test('Optional call (?.())을 파싱하고 OptionalCallExpression 노드를 만든다', () => {
+    const ast = parseSource('a?.b?.();');
+    const expr = ast.program.body[0].expression;
+    expect(expr.type).toBe('OptionalCallExpression');
+  });
+
+  test('Nullish Coalescing (??)을 SyntaxError 없이 파싱한다', () => {
+    expect(() => parseSource('const x = a ?? b;')).not.toThrow();
+  });
+
+  test('Class field (class properties)를 파싱한다', () => {
+    expect(() =>
+      parseSource('class C { x = 1; static y = 2; m() { return this.x; } }')
+    ).not.toThrow();
+  });
+
+  test('Dynamic import()를 파싱한다', () => {
+    expect(() => parseSource("const p = import('./mod');")).not.toThrow();
+  });
+});
